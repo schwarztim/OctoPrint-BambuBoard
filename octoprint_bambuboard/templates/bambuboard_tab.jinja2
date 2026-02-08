@@ -1,0 +1,245 @@
+<div id="tab_plugin_bambuboard">
+    <!-- Printer Selector -->
+    <div class="bb-printer-selector">
+        <select data-bind="options: printers, optionsText: function(p) { return p.name() + ' (' + p.printerModel() + ')'; }, optionsValue: 'id', value: selectedPrinterId" class="bb-select"></select>
+        <button class="btn btn-small" data-bind="click: refreshPrinter, enable: selectedPrinter() && selectedPrinter().connected()" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+    </div>
+
+    <!-- ko with: selectedPrinter -->
+
+    <!-- Status Bar -->
+    <div class="bb-status-bar" data-bind="css: statusClass()">
+        <span class="bb-status-dot" data-bind="css: statusClass()"></span>
+        <span data-bind="text: statusSummary"></span>
+        <span class="bb-status-meta">
+            <span data-bind="text: printerModel"></span>
+            <span data-bind="visible: firmwareVersion(), text: 'FW: ' + firmwareVersion()"></span>
+        </span>
+    </div>
+
+    <!-- Print Progress -->
+    <div class="bb-card" data-bind="visible: isPrinting() || isPaused()">
+        <h4>Print Progress</h4>
+        <div class="bb-progress-section">
+            <div class="bb-filename" data-bind="text: subtaskName() || 'Unknown file'"></div>
+            <div class="bb-progress-bar-container">
+                <div class="bb-progress-bar" data-bind="style: { width: printPercentage() + '%' }">
+                    <span data-bind="text: printPercentage() + '%'"></span>
+                </div>
+            </div>
+            <div class="bb-progress-details">
+                <span>Layer: <strong data-bind="text: currentLayer() + ' / ' + totalLayers()"></strong></span>
+                <span>Stage: <strong data-bind="text: currentStageName() || gcodeState()"></strong></span>
+                <span>Elapsed: <strong data-bind="text: elapsedTimeFormatted"></strong></span>
+                <span>Remaining: <strong data-bind="text: remainingTimeFormatted"></strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Temperature Cards -->
+    <div class="bb-card-row">
+        <div class="bb-card bb-temp-card">
+            <h4>Bed</h4>
+            <div class="bb-temp-value" data-bind="text: bedTemp().toFixed(1) + '°C'"></div>
+            <div class="bb-temp-target">Target: <span data-bind="text: bedTempTarget() + '°C'"></span></div>
+            <button class="btn btn-small" data-bind="click: $parent.setBedTemp">Set</button>
+        </div>
+        <div class="bb-card bb-temp-card">
+            <h4>Nozzle</h4>
+            <div class="bb-temp-value" data-bind="text: nozzleTemp().toFixed(1) + '°C'"></div>
+            <div class="bb-temp-target">Target: <span data-bind="text: nozzleTempTarget() + '°C'"></span></div>
+            <button class="btn btn-small" data-bind="click: $parent.setNozzleTemp">Set</button>
+        </div>
+        <!-- ko if: hasChamberTemp -->
+        <div class="bb-card bb-temp-card">
+            <h4>Chamber</h4>
+            <div class="bb-temp-value" data-bind="text: chamberTemp().toFixed(1) + '°C'"></div>
+            <div class="bb-temp-target">Target: <span data-bind="text: chamberTempTarget() + '°C'"></span></div>
+            <button class="btn btn-small" data-bind="click: $parent.setChamberTemp">Set</button>
+        </div>
+        <!-- /ko -->
+    </div>
+
+    <!-- Fan Controls -->
+    <div class="bb-card">
+        <h4>Fans</h4>
+        <div class="bb-fan-row">
+            <label>Part Cooling: <strong data-bind="text: partFanSpeed() + '%'"></strong></label>
+            <input type="range" min="0" max="100" data-bind="value: partFanSpeed, event: { change: $parent.setPartFan }">
+        </div>
+        <div class="bb-fan-row">
+            <label>Aux Fan: <strong data-bind="text: auxFanSpeed() + '%'"></strong></label>
+            <input type="range" min="0" max="100" data-bind="value: auxFanSpeed, event: { change: $parent.setAuxFan }">
+        </div>
+        <div class="bb-fan-row">
+            <label>Exhaust Fan: <strong data-bind="text: exhaustFanSpeed() + '%'"></strong></label>
+            <input type="range" min="0" max="100" data-bind="value: exhaustFanSpeed, event: { change: $parent.setExhaustFan }">
+        </div>
+    </div>
+
+    <!-- Print Controls -->
+    <div class="bb-card">
+        <h4>Controls</h4>
+        <div class="bb-controls-row">
+            <button class="btn" data-bind="click: $parent.pausePrinting, visible: isPrinting()"><i class="fas fa-pause"></i> Pause</button>
+            <button class="btn" data-bind="click: $parent.resumePrinting, visible: isPaused()"><i class="fas fa-play"></i> Resume</button>
+            <button class="btn btn-danger" data-bind="click: $parent.stopPrinting, visible: isPrinting() || isPaused()"><i class="fas fa-stop"></i> Stop</button>
+
+            <div class="bb-speed-control">
+                <label>Speed:</label>
+                <select data-bind="value: speedLevel, event: { change: function(d,e) { $parent.setSpeedLevel(parseInt(e.target.value)); } }">
+                    <option value="1">Silent</option>
+                    <option value="2">Standard</option>
+                    <option value="3">Sport</option>
+                    <option value="4">Ludicrous</option>
+                </select>
+            </div>
+
+            <button class="btn btn-small" data-bind="click: $parent.toggleLight, css: { active: lightState() }">
+                <i class="fas fa-lightbulb"></i> LED <span data-bind="text: lightState() ? 'ON' : 'OFF'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- AMS Section -->
+    <!-- ko if: hasAms -->
+    <div class="bb-card">
+        <h4>AMS <small data-bind="text: '(' + amsConnectedCount() + ' connected)'"></small></h4>
+        <div data-bind="foreach: amsUnits" class="bb-ams-units">
+            <div class="bb-ams-unit">
+                <div class="bb-ams-header">
+                    <strong data-bind="text: 'AMS ' + ($index() + 1)"></strong>
+                    <span data-bind="text: model"></span>
+                    <span data-bind="visible: temp_actual > 0, text: temp_actual.toFixed(1) + '°C'"></span>
+                    <span class="bb-ams-humidity" data-bind="visible: humidity_index > 0, text: 'Humidity: ' + humidity_index"></span>
+                </div>
+                <div class="bb-ams-trays">
+                    <!-- ko foreach: tray_exists -->
+                    <div class="bb-ams-tray" data-bind="css: { 'bb-tray-present': $data }">
+                        <span class="bb-tray-number" data-bind="text: 'Tray ' + ($index() + 1)"></span>
+                        <!-- ko if: $data -->
+                        <button class="btn btn-mini" data-bind="click: function() { $parents[2].loadFilament($index(), $parent.ams_id); }">Load</button>
+                        <!-- /ko -->
+                    </div>
+                    <!-- /ko -->
+                </div>
+                <div class="bb-ams-dryer">
+                    <span data-bind="text: heater_state"></span>
+                    <span data-bind="visible: dry_time > 0, text: dry_time + ' min remaining'"></span>
+                    <button class="btn btn-mini" data-bind="click: function() { $parents[1].startAmsDryer(ams_id); }">Start Dryer</button>
+                    <button class="btn btn-mini" data-bind="click: function() { $parents[1].stopAmsDryer(ams_id); }">Stop Dryer</button>
+                </div>
+            </div>
+        </div>
+        <div class="bb-ams-actions">
+            <button class="btn btn-small" data-bind="click: function() { $parent.unloadFilament(0); }"><i class="fas fa-eject"></i> Unload Filament</button>
+        </div>
+
+        <!-- Spools -->
+        <div data-bind="visible: spools().length > 0">
+            <h5>Loaded Spools</h5>
+            <div class="bb-spool-grid" data-bind="foreach: spools">
+                <!-- ko if: $data -->
+                <div class="bb-spool-card">
+                    <div class="bb-spool-color" data-bind="style: { backgroundColor: '#' + ($data.tray_color || '808080') }"></div>
+                    <div class="bb-spool-info">
+                        <div data-bind="text: $data.tray_type || 'Unknown'"></div>
+                        <div data-bind="text: $data.tray_id_name || ''"></div>
+                        <div data-bind="visible: $data.remain_percent >= 0, text: $data.remain_percent + '% remaining'"></div>
+                    </div>
+                </div>
+                <!-- /ko -->
+            </div>
+        </div>
+    </div>
+    <!-- /ko -->
+
+    <!-- HMS Errors -->
+    <div data-bind="visible: hmsErrors().length > 0" class="bb-card bb-hms-errors">
+        <h4><i class="fas fa-exclamation-triangle"></i> HMS Errors</h4>
+        <div data-bind="foreach: hmsErrors">
+            <div class="bb-hms-error">
+                <span class="bb-hms-code" data-bind="text: $data.code || 'Unknown'"></span>
+                <span data-bind="text: $data.msg || $data.description || JSON.stringify($data)"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Browser -->
+    <div class="bb-card">
+        <h4>Files
+            <button class="btn btn-small" data-bind="click: $parent.loadFiles, disable: filesLoading()">
+                <span data-bind="visible: !filesLoading()"><i class="fas fa-folder-open"></i> Load</span>
+                <span data-bind="visible: filesLoading()"><i class="fas fa-spinner fa-spin"></i></span>
+            </button>
+            <button class="btn btn-small" data-bind="click: $parent.makeDirectory"><i class="fas fa-folder-plus"></i> New Folder</button>
+            <label class="btn btn-small btn-file">
+                <i class="fas fa-upload"></i> Upload
+                <input type="file" style="display:none" accept=".3mf,.gcode" data-bind="event: { change: $parent.uploadFile }">
+            </label>
+        </h4>
+        <div data-bind="visible: sdCardContents()">
+            <div data-bind="foreach: Object.keys(sdCardContents() || {})" class="bb-file-list">
+                <div class="bb-file-item">
+                    <span class="bb-file-name" data-bind="text: $data"></span>
+                    <!-- ko if: $data.endsWith('.3mf') -->
+                    <button class="btn btn-mini btn-primary" data-bind="click: function() { $parents[1].startPrint($data); }">Print</button>
+                    <!-- /ko -->
+                    <button class="btn btn-mini btn-danger" data-bind="click: function() { $parents[1].deleteFile($data); }"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        </div>
+        <div data-bind="visible: !sdCardContents()" class="bb-file-empty">
+            Click "Load" to browse printer files
+        </div>
+    </div>
+
+    <!-- G-code Console -->
+    <div class="bb-card">
+        <h4>G-code Console</h4>
+        <div class="bb-gcode-input">
+            <input type="text" placeholder="Enter G-code command..." data-bind="value: gcodeInput, valueUpdate: 'afterkeydown', event: { keypress: function(d, e) { if (e.keyCode === 13) { $parent.sendGcode(); return false; } return true; } }">
+            <button class="btn" data-bind="click: $parent.sendGcode">Send</button>
+        </div>
+        <div class="bb-gcode-history" data-bind="foreach: gcodeHistory">
+            <div class="bb-gcode-entry">
+                <span class="bb-gcode-time" data-bind="text: time"></span>
+                <code data-bind="text: command"></code>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Options -->
+    <div class="bb-card">
+        <h4>Print Options</h4>
+        <div class="bb-options-grid">
+            <label>
+                <input type="checkbox" data-bind="checked: autoRecovery, click: function() { $parent.setPrintOption('AUTO_RECOVERY', !autoRecovery()); return true; }">
+                Auto Recovery
+            </label>
+            <label>
+                <input type="checkbox" data-bind="checked: filamentTangleDetect, click: function() { $parent.setPrintOption('FILAMENT_TANGLE_DETECT', !filamentTangleDetect()); return true; }">
+                Filament Tangle Detect
+            </label>
+            <label>
+                <input type="checkbox" data-bind="checked: soundEnable, click: function() { $parent.setPrintOption('SOUND_ENABLE', !soundEnable()); return true; }">
+                Sound
+            </label>
+            <label>
+                <input type="checkbox" data-bind="checked: autoSwitchFilament, click: function() { $parent.setPrintOption('AUTO_SWITCH_FILAMENT', !autoSwitchFilament()); return true; }">
+                Auto Switch Filament
+            </label>
+        </div>
+    </div>
+
+    <!-- /ko -->
+
+    <!-- No printer selected state -->
+    <!-- ko ifnot: selectedPrinter -->
+    <div class="bb-empty-state">
+        <i class="fas fa-cubes bb-empty-icon"></i>
+        <h3>No Printers Configured</h3>
+        <p>Add your Bambu Lab printers in Settings &rarr; BambuBoard</p>
+    </div>
+    <!-- /ko -->
+</div>

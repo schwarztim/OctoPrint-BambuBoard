@@ -1,0 +1,39 @@
+<div id="sidebar_plugin_bambuboard">
+    <div data-bind="foreach: printers">
+        <div class="bb-sidebar-printer">
+            <div class="bb-sidebar-header">
+                <span class="bb-status-dot" data-bind="css: statusClass()"></span>
+                <strong data-bind="text: name"></strong>
+                <small data-bind="text: printerModel"></small>
+            </div>
+            <div class="bb-sidebar-details">
+                <span data-bind="text: statusSummary, css: statusClass()"></span>
+            </div>
+            <!-- ko if: connected() -->
+            <div class="bb-sidebar-temps">
+                <span title="Bed"><i class="fas fa-grip-lines"></i> <span data-bind="text: bedTemp().toFixed(0) + '°C'"></span></span>
+                <span title="Nozzle"><i class="fas fa-pen-nib"></i> <span data-bind="text: nozzleTemp().toFixed(0) + '°C'"></span></span>
+            </div>
+            <!-- ko if: isPrinting() || isPaused() -->
+            <div class="bb-sidebar-progress">
+                <div class="bb-mini-progress">
+                    <div class="bb-mini-progress-bar" data-bind="style: { width: printPercentage() + '%' }"></div>
+                </div>
+                <span data-bind="text: printPercentage() + '%'"></span>
+            </div>
+            <!-- /ko -->
+            <!-- /ko -->
+            <!-- ko ifnot: connected() -->
+            <div class="bb-sidebar-offline">
+                <button class="btn btn-mini" data-bind="click: $parent.connectPrinter">Connect</button>
+            </div>
+            <!-- /ko -->
+        </div>
+    </div>
+
+    <!-- ko if: printers().length === 0 -->
+    <div class="bb-sidebar-empty">
+        <small>No printers configured</small>
+    </div>
+    <!-- /ko -->
+</div>

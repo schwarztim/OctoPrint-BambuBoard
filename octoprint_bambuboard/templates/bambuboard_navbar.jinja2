@@ -1,0 +1,19 @@
+<a href="#" class="dropdown-toggle" data-toggle="dropdown" id="navbar_plugin_bambuboard">
+    <i class="fas fa-cubes"></i>
+    <span class="badge" data-bind="text: connectedPrinterCount, visible: connectedPrinterCount() > 0"></span>
+</a>
+<ul class="dropdown-menu bb-navbar-dropdown">
+    <li class="dropdown-header">Bambu Printers</li>
+    <!-- ko foreach: printers -->
+    <li>
+        <a href="#tab_plugin_bambuboard" data-bind="click: function() { $parent.selectedPrinterId(id); }">
+            <span class="bb-status-dot bb-status-dot-inline" data-bind="css: statusClass()"></span>
+            <span data-bind="text: name"></span>
+            <span class="bb-navbar-status" data-bind="text: statusSummary"></span>
+        </a>
+    </li>
+    <!-- /ko -->
+    <!-- ko if: printers().length === 0 -->
+    <li><a href="#settings_plugin_bambuboard"><i class="fas fa-cog"></i> Configure printers</a></li>
+    <!-- /ko -->
+</ul>

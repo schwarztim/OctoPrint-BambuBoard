@@ -1,0 +1,102 @@
+<div id="settings_plugin_bambuboard">
+    <h4>BambuBoard — Printer Configuration</h4>
+    <p class="help-block">
+        Add your Bambu Lab printers below. Each printer requires its IP address,
+        access code (from the printer's settings screen), and serial number.
+    </p>
+
+    <!-- Global Settings -->
+    <div class="bb-settings-section">
+        <h5>General</h5>
+        <div class="control-group">
+            <label class="control-label">Update Throttle (ms)</label>
+            <div class="controls">
+                <input type="number" min="200" max="5000" step="100"
+                       data-bind="value: settings.settings.plugins.bambuboard.update_throttle_ms">
+                <span class="help-inline">Minimum interval between UI updates per printer</span>
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label">
+                <input type="checkbox" data-bind="checked: settings.settings.plugins.bambuboard.sidebar_show_all">
+                Show all printers in sidebar
+            </label>
+        </div>
+    </div>
+
+    <!-- Printer List -->
+    <div class="bb-settings-section">
+        <h5>Printers</h5>
+        <div data-bind="foreach: printerConfigs" class="bb-printer-list">
+            <div class="bb-printer-config well">
+                <div class="bb-config-header">
+                    <strong data-bind="text: name() || 'New Printer'"></strong>
+                    <button class="btn btn-mini btn-danger pull-right" data-bind="click: $parent.removePrinter">
+                        <i class="fas fa-trash"></i> Remove
+                    </button>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Name</label>
+                    <div class="controls">
+                        <input type="text" data-bind="value: name" placeholder="My P1S">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Hostname / IP</label>
+                    <div class="controls">
+                        <input type="text" data-bind="value: hostname" placeholder="192.168.1.100">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Access Code</label>
+                    <div class="controls">
+                        <input type="password" data-bind="value: access_code" placeholder="8-digit code from printer">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Serial Number</label>
+                    <div class="controls">
+                        <input type="text" data-bind="value: serial_number" placeholder="e.g. 01P00C572303072">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">MQTT Port</label>
+                    <div class="controls">
+                        <input type="number" data-bind="value: mqtt_port" placeholder="8883">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">
+                        <input type="checkbox" data-bind="checked: external_chamber">
+                        External Chamber Sensor
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">
+                        <input type="checkbox" data-bind="checked: auto_connect">
+                        Auto-connect on startup
+                    </label>
+                </div>
+
+                <div class="bb-config-actions">
+                    <button class="btn btn-small" data-bind="click: $parent.testConnection, disable: _testing() || !hostname() || !access_code() || !serial_number()">
+                        <span data-bind="visible: !_testing()"><i class="fas fa-plug"></i> Test Connection</span>
+                        <span data-bind="visible: _testing()"><i class="fas fa-spinner fa-spin"></i> Testing...</span>
+                    </button>
+                    <span class="bb-test-result" data-bind="text: _testResult, css: { 'text-success': _testResult().indexOf('Connected') === 0, 'text-error': _testResult().indexOf('Failed') === 0 || _testResult().indexOf('Error') === 0 }"></span>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn" data-bind="click: addPrinter">
+            <i class="fas fa-plus"></i> Add Printer
+        </button>
+    </div>
+</div>
