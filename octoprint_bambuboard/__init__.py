@@ -10,6 +10,7 @@ import tempfile
 import flask
 import octoprint.plugin
 
+from .camera_proxy import CameraProxy
 from .file_manager import FileManager
 from .printer_manager import PrinterManager
 
@@ -31,6 +32,7 @@ class BambuBoardPlugin(
         _logger.info("BambuBoard starting up")
         self._printer_manager = PrinterManager(self)
         self._file_manager = FileManager(self._printer_manager)
+        self._camera_proxy = CameraProxy(self)
 
         printers = self._settings.get(["printers"]) or []
         if printers:
@@ -39,6 +41,8 @@ class BambuBoardPlugin(
 
     def on_shutdown(self):
         _logger.info("BambuBoard shutting down")
+        if hasattr(self, "_camera_proxy"):
+            self._camera_proxy.stop_all()
         if hasattr(self, "_printer_manager"):
             self._printer_manager.shutdown_all()
 
@@ -49,6 +53,7 @@ class BambuBoardPlugin(
             "printers": [],
             "update_throttle_ms": 1000,
             "sidebar_show_all": True,
+            "sidebar_display_mode": "all",
             "default_printer_id": "",
         }
 
@@ -184,6 +189,20 @@ class BambuBoardPlugin(
             "stop_ams_dryer": ["printer_id", "ams_id"],
             "set_print_option": ["printer_id", "option", "enabled"],
             "refresh_printer": ["printer_id"],
+            # Phase 1B: new commands
+            "skip_objects": ["printer_id", "objects"],
+            "set_spool_details": ["printer_id", "tray_id"],
+            "select_extrusion_calibration_profile": ["printer_id", "tray_id", "cali_idx"],
+            "set_nozzle_details": ["printer_id", "nozzle_diameter", "nozzle_type"],
+            "set_active_tool": ["printer_id", "tool_id"],
+            "refresh_spool_rfid": ["printer_id", "slot_id", "ams_id"],
+            "send_ams_control_command": ["printer_id", "ams_command"],
+            "set_ams_user_setting": ["printer_id", "setting", "enabled"],
+            "set_buildplate_marker_detector": ["printer_id", "enabled"],
+            "send_anything": ["printer_id", "payload"],
+            "rename_file": ["printer_id", "src", "dest"],
+            "pause_session": ["printer_id"],
+            "resume_session": ["printer_id"],
         }
 
     def on_api_command(self, command, data):
@@ -227,7 +246,14 @@ class BambuBoardPlugin(
 
     def _dispatch_printer_command(self, command, data, instance, printer_id):
         """Dispatch a command to the appropriate BambuPrinter method."""
-        from ._vendor.bpm.bambutools import PlateType, PrintOption
+        from ._vendor.bpm.bambutools import (
+            AMSControlCommand,
+            AMSUserSetting,
+            NozzleDiameter,
+            NozzleType,
+            PlateType,
+            PrintOption,
+        )
 
         if command == "pause_printing":
             instance.pause_printing()
@@ -311,6 +337,69 @@ class BambuBoardPlugin(
         elif command == "refresh_printer":
             instance.refresh()
 
+        # ── Phase 1B: new commands ──
+
+        elif command == "skip_objects":
+            instance.skip_objects(data["objects"])
+
+        elif command == "set_spool_details":
+            instance.set_spool_details(
+                tray_id=int(data["tray_id"]),
+                tray_info_idx=data.get("tray_info_idx", ""),
+                tray_id_name=data.get("tray_id_name", ""),
+                tray_type=data.get("tray_type", ""),
+                tray_color=data.get("tray_color", ""),
+                nozzle_temp_min=int(data.get("nozzle_temp_min", 0)),
+                nozzle_temp_max=int(data.get("nozzle_temp_max", 0)),
+                ams_id=int(data.get("ams_id", 0)),
+            )
+
+        elif command == "select_extrusion_calibration_profile":
+            instance.select_extrusion_calibration_profile(
+                tray_id=int(data["tray_id"]),
+                cali_idx=int(data["cali_idx"]),
+            )
+
+        elif command == "set_nozzle_details":
+            instance.set_nozzle_details(
+                nozzle_diameter=NozzleDiameter[data["nozzle_diameter"]],
+                nozzle_type=NozzleType[data["nozzle_type"]],
+            )
+
+        elif command == "set_active_tool":
+            instance.set_active_tool(int(data["tool_id"]))
+
+        elif command == "refresh_spool_rfid":
+            instance.refresh_spool_rfid(
+                slot_id=int(data["slot_id"]),
+                ams_id=int(data["ams_id"]),
+            )
+
+        elif command == "send_ams_control_command":
+            instance.send_ams_control_command(AMSControlCommand[data["ams_command"]])
+
+        elif command == "set_ams_user_setting":
+            instance.set_ams_user_setting(
+                setting=AMSUserSetting[data["setting"]],
+                enabled=bool(data["enabled"]),
+                ams_id=int(data.get("ams_id", 0)),
+            )
+
+        elif command == "set_buildplate_marker_detector":
+            instance.set_buildplate_marker_detector(bool(data["enabled"]))
+
+        elif command == "send_anything":
+            instance.send_anything(data["payload"])
+
+        elif command == "rename_file":
+            instance.rename_sdcard_file(data["src"], data["dest"])
+
+        elif command == "pause_session":
+            instance.pause_session()
+
+        elif command == "resume_session":
+            instance.resume_session()
+
         else:
             return flask.jsonify({"error": f"Unknown command: {command}"}), 400
 
@@ -378,6 +467,34 @@ class BambuBoardPlugin(
         response.headers["Content-Disposition"] = "attachment; filename={}".format(filename)
         return response
 
+    # ── Blueprint: Camera Streaming ────────────────────────────────────
+
+    @octoprint.plugin.BlueprintPlugin.route("/camera/<printer_id>/stream", methods=["GET"])
+    def camera_stream(self, printer_id):
+        """MJPEG multipart stream for a printer's camera."""
+        if not hasattr(self, "_camera_proxy") or not self._camera_proxy.is_available():
+            return flask.jsonify({"error": "Camera not available. Install opencv-python-headless."}), 503
+
+        return flask.Response(
+            self._camera_proxy.generate_mjpeg(printer_id),
+            mimetype="multipart/x-mixed-replace; boundary=frame",
+        )
+
+    @octoprint.plugin.BlueprintPlugin.route("/camera/<printer_id>/snapshot", methods=["GET"])
+    def camera_snapshot(self, printer_id):
+        """Single JPEG snapshot from a printer's camera."""
+        if not hasattr(self, "_camera_proxy") or not self._camera_proxy.is_available():
+            return flask.jsonify({"error": "Camera not available. Install opencv-python-headless."}), 503
+
+        frame = self._camera_proxy.get_snapshot(printer_id)
+        if frame is None:
+            return flask.jsonify({"error": "No frame available"}), 503
+
+        response = flask.make_response(frame)
+        response.headers["Content-Type"] = "image/jpeg"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
     @staticmethod
     def _sanitize_remote_path(path):
         """Normalize and validate a remote SD card path.
@@ -397,6 +514,62 @@ class BambuBoardPlugin(
 
     def is_blueprint_csrf_protected(self):
         return True
+
+    # ── Virtual Serial Port (Native OctoPrint Integration) ──────────────
+
+    def virtual_serial_port_names(self, candidates, *args, **kwargs):
+        """Hook: add BAMBU:<name> ports to OctoPrint's Connection dropdown."""
+        if not hasattr(self, "_printer_manager"):
+            return candidates
+
+        printers = self._settings.get(["printers"]) or []
+        for cfg in printers:
+            if cfg.get("register_virtual_serial", False):
+                port_name = "BAMBU:{}".format(cfg.get("name", cfg["id"]))
+                if port_name not in candidates:
+                    candidates.append(port_name)
+
+        return candidates
+
+    def virtual_serial_factory(self, comm_instance, port, baudrate, read_timeout, *args, **kwargs):
+        """Hook: create a BambuVirtualSerial when port starts with BAMBU:."""
+        if not port or not port.startswith("BAMBU:"):
+            return None
+
+        if not hasattr(self, "_printer_manager"):
+            return None
+
+        from .virtual_serial import BambuVirtualSerial
+
+        printer_name = port[len("BAMBU:"):]
+
+        # Find the managed printer by name
+        printers = self._settings.get(["printers"]) or []
+        for cfg in printers:
+            if cfg.get("name", cfg["id"]) == printer_name:
+                printer_id = cfg["id"]
+                managed = self._printer_manager.get_printer(printer_id)
+                if managed is None:
+                    # Not connected yet — try connecting
+                    self._printer_manager.connect_printer(cfg)
+                    managed = self._printer_manager.get_printer(printer_id)
+                if managed is None:
+                    _logger.error("Could not connect printer %s for virtual serial", printer_name)
+                    return None
+
+                return BambuVirtualSerial(managed, self._printer_manager)
+
+        _logger.warning("No printer config found matching port %s", port)
+        return None
+
+    def virtual_serial_additional_state(self, initial):
+        """Hook: inject Bambu state into OctoPrint's native state response."""
+        if not hasattr(self, "_printer_manager"):
+            return initial
+
+        all_states = self._printer_manager.get_all_states()
+        initial["bambuboard"] = all_states
+        return initial
 
     # ── Plugin Message Dispatch ────────────────────────────────────────
 
@@ -450,4 +623,7 @@ def __plugin_load__():
     global __plugin_hooks__
     __plugin_hooks__ = {
         "octoprint.plugin.softwareupdate.check_config": __plugin_implementation__.get_update_information,
+        "octoprint.comm.transport.serial.additional_port_names": __plugin_implementation__.virtual_serial_port_names,
+        "octoprint.comm.transport.serial.factory": __plugin_implementation__.virtual_serial_factory,
+        "octoprint.printer.additional_state_data": __plugin_implementation__.virtual_serial_additional_state,
     }

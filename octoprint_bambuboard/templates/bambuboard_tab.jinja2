@@ -14,14 +14,41 @@
         <span class="bb-status-meta">
             <span data-bind="text: printerModel"></span>
             <span data-bind="visible: firmwareVersion(), text: 'FW: ' + firmwareVersion()"></span>
+            <span data-bind="visible: nozzleDiameter() !== 'UNKNOWN', text: nozzleDiameter() + 'mm ' + nozzleType()"></span>
+            <span data-bind="visible: wifiSignal(), text: 'WiFi: ' + wifiSignal()"></span>
         </span>
     </div>
+
+    <!-- Camera Feed -->
+    <!-- ko if: hasCamera -->
+    <div class="bb-card bb-camera-card" id="bb-camera-section">
+        <h4>
+            <i class="fas fa-video"></i> Camera
+            <button class="btn btn-mini" data-bind="click: $parent.toggleCameraStream, css: { active: cameraActive() }">
+                <i class="fas" data-bind="css: { 'fa-play': !cameraActive(), 'fa-stop': cameraActive() }"></i>
+                <span data-bind="text: cameraActive() ? 'Stop' : 'Start'"></span>
+            </button>
+            <button class="btn btn-mini" data-bind="click: $parent.cameraSnapshot" title="Take snapshot">
+                <i class="fas fa-camera"></i>
+            </button>
+        </h4>
+        <!-- ko if: cameraActive -->
+        <img class="bb-camera-stream" data-bind="attr: { src: cameraStreamUrl }" alt="Camera feed">
+        <!-- /ko -->
+        <!-- ko ifnot: cameraActive -->
+        <div class="bb-camera-placeholder" data-bind="visible: cameraAvailable()">Click Start to view camera feed</div>
+        <div class="bb-camera-placeholder" data-bind="visible: !cameraAvailable()">
+            <i class="fas fa-exclamation-circle"></i> Install <code>opencv-python-headless</code> to enable camera
+        </div>
+        <!-- /ko -->
+    </div>
+    <!-- /ko -->
 
     <!-- Print Progress -->
     <div class="bb-card" data-bind="visible: isPrinting() || isPaused()">
         <h4>Print Progress</h4>
         <div class="bb-progress-section">
-            <div class="bb-filename" data-bind="text: subtaskName() || 'Unknown file'"></div>
+            <div class="bb-filename" data-bind="text: subtaskName() || current3mfFile() || 'Unknown file'"></div>
             <div class="bb-progress-bar-container">
                 <div class="bb-progress-bar" data-bind="style: { width: printPercentage() + '%' }">
                     <span data-bind="text: printPercentage() + '%'"></span>
@@ -34,7 +61,35 @@
                 <span>Remaining: <strong data-bind="text: remainingTimeFormatted"></strong></span>
             </div>
         </div>
+
+        <!-- Skip Objects Panel -->
+        <div class="bb-skip-objects" data-bind="visible: isPrinting()">
+            <h5>Skip Objects</h5>
+            <div data-bind="visible: skippedObjects().length > 0" class="bb-skipped-list">
+                Skipped: <span data-bind="text: skippedObjects().join(', ')"></span>
+            </div>
+            <div class="bb-gcode-input">
+                <input type="text" placeholder="Object IDs to skip (comma-separated)" data-bind="value: skipObjectsInput">
+                <button class="btn btn-small" data-bind="click: $parent.skipObjects">Skip</button>
+            </div>
+        </div>
     </div>
+
+    <!-- Active Tool Selector (H2D dual extruder only) -->
+    <!-- ko if: hasDualExtruder -->
+    <div class="bb-card">
+        <h4>Active Extruder</h4>
+        <div class="bb-controls-row">
+            <label class="btn" data-bind="css: { active: activeTool() === 'RIGHT_EXTRUDER' }, click: function() { $parent.setActiveTool(0); }">
+                <i class="fas fa-arrow-right"></i> Right (T0)
+            </label>
+            <label class="btn" data-bind="css: { active: activeTool() === 'LEFT_EXTRUDER' }, click: function() { $parent.setActiveTool(1); }">
+                <i class="fas fa-arrow-left"></i> Left (T1)
+            </label>
+            <span class="bb-status-meta">Current: <strong data-bind="text: activeTool"></strong></span>
+        </div>
+    </div>
+    <!-- /ko -->
 
     <!-- Temperature Cards -->
     <div class="bb-card-row">
@@ -69,6 +124,34 @@
         <!-- /ko -->
     </div>
 
+    <!-- Nozzle Configuration Card -->
+    <div class="bb-card">
+        <h4>Nozzle Configuration</h4>
+        <div class="bb-controls-row">
+            <div>
+                <label>Diameter:</label>
+                <select id="bb-nozzle-diameter" data-bind="value: nozzleDiameter">
+                    <option value="POINT_TWO_MM">0.2mm</option>
+                    <option value="POINT_FOUR_MM">0.4mm</option>
+                    <option value="POINT_SIX_MM">0.6mm</option>
+                    <option value="POINT_EIGHT_MM">0.8mm</option>
+                </select>
+            </div>
+            <div>
+                <label>Type:</label>
+                <select id="bb-nozzle-type" data-bind="value: nozzleType">
+                    <option value="STAINLESS_STEEL">Stainless Steel</option>
+                    <option value="HARDENED_STEEL">Hardened Steel</option>
+                    <option value="HS01">HS01</option>
+                    <option value="HH01">HH01</option>
+                </select>
+            </div>
+            <button class="btn btn-small" data-bind="click: function() { $parent.setNozzleDetails(nozzleDiameter(), nozzleType()); }">
+                <i class="fas fa-save"></i> Apply
+            </button>
+        </div>
+    </div>
+
     <!-- Fan Controls -->
     <div class="bb-card">
         <h4>Fans</h4>
@@ -84,7 +167,48 @@
             <label>Exhaust Fan: <strong data-bind="text: exhaustFanSpeed() + '%'"></strong></label>
             <input type="range" min="0" max="100" data-bind="value: exhaustFanSpeed, event: { change: $parent.setExhaustFan }">
         </div>
+        <div class="bb-fan-row" data-bind="visible: heatbreakFanSpeed() > 0">
+            <label>Heatbreak Fan: <strong data-bind="text: heatbreakFanSpeed() + '%'"></strong></label>
+            <div class="bb-fan-readonly-bar" data-bind="style: { width: heatbreakFanSpeed() + '%' }"></div>
+        </div>
     </div>
+
+    <!-- Air Filtration Card -->
+    <!-- ko if: hasAirFiltration -->
+    <div class="bb-card">
+        <h4><i class="fas fa-wind"></i> Air Filtration</h4>
+        <div class="bb-air-filtration-grid">
+            <div class="bb-af-item">
+                <span class="bb-af-label">AC Mode</span>
+                <span data-bind="text: airConditioningMode"></span>
+            </div>
+            <div class="bb-af-item">
+                <span class="bb-af-label">Intake</span>
+                <span data-bind="text: zoneIntakeOpen() ? 'Open' : 'Closed'"></span>
+            </div>
+            <div class="bb-af-item">
+                <span class="bb-af-label">Top Vent</span>
+                <span data-bind="text: zoneTopVentOpen() ? 'Open' : 'Closed'"></span>
+            </div>
+            <div class="bb-af-item">
+                <span class="bb-af-label">Door</span>
+                <span data-bind="text: isChamberDoorOpen() ? 'Open' : 'Closed', css: { 'text-warning': isChamberDoorOpen() }"></span>
+            </div>
+            <div class="bb-af-item">
+                <span class="bb-af-label">Zone Part Fan</span>
+                <span data-bind="text: zonePartFanPercent() + '%'"></span>
+            </div>
+            <div class="bb-af-item">
+                <span class="bb-af-label">Zone Aux</span>
+                <span data-bind="text: zoneAuxPercent() + '%'"></span>
+            </div>
+            <div class="bb-af-item">
+                <span class="bb-af-label">Zone Exhaust</span>
+                <span data-bind="text: zoneExhaustPercent() + '%'"></span>
+            </div>
+        </div>
+    </div>
+    <!-- /ko -->
 
     <!-- Print Controls -->
     <div class="bb-card">
@@ -113,14 +237,38 @@
     <!-- AMS Section -->
     <!-- ko if: hasAms -->
     <div class="bb-card">
-        <h4>AMS <small data-bind="text: '(' + amsConnectedCount() + ' connected)'"></small></h4>
+        <h4>AMS <small data-bind="text: '(' + amsConnectedCount() + ' connected)'"></small>
+            <div class="btn-group btn-group-mini" style="margin-left:8px">
+                <button class="btn btn-mini" data-bind="click: function() { $parent.sendAmsControlCommand('PAUSE'); }" title="Pause AMS"><i class="fas fa-pause"></i></button>
+                <button class="btn btn-mini" data-bind="click: function() { $parent.sendAmsControlCommand('RESUME'); }" title="Resume AMS"><i class="fas fa-play"></i></button>
+                <button class="btn btn-mini" data-bind="click: function() { $parent.sendAmsControlCommand('RESET'); }" title="Reset AMS"><i class="fas fa-redo"></i></button>
+            </div>
+        </h4>
+
+        <!-- AMS User Settings -->
+        <div class="bb-options-grid" style="margin-bottom:10px">
+            <label>
+                <input type="checkbox" data-bind="checked: startupReadOption, click: function() { $parent.setAmsUserSetting('STARTUP_READ_OPTION', !startupReadOption()); return true; }">
+                Read RFID on startup
+            </label>
+            <label>
+                <input type="checkbox" data-bind="checked: trayReadOption, click: function() { $parent.setAmsUserSetting('TRAY_READ_OPTION', !trayReadOption()); return true; }">
+                Read RFID on tray change
+            </label>
+            <label>
+                <input type="checkbox" data-bind="checked: calibrateRemainFlag, click: function() { $parent.setAmsUserSetting('CALIBRATE_REMAIN_FLAG', !calibrateRemainFlag()); return true; }">
+                Calculate remaining filament
+            </label>
+        </div>
+
         <div data-bind="foreach: amsUnits" class="bb-ams-units">
             <div class="bb-ams-unit">
                 <div class="bb-ams-header">
                     <strong data-bind="text: 'AMS ' + ($index() + 1)"></strong>
                     <span data-bind="text: model"></span>
+                    <span class="bb-ams-chip-id" data-bind="visible: chip_id, text: chip_id" title="Chip ID"></span>
                     <span data-bind="visible: temp_actual > 0, text: temp_actual.toFixed(1) + '°C'"></span>
-                    <span class="bb-ams-humidity" data-bind="visible: humidity_index > 0, text: 'Humidity: ' + humidity_index"></span>
+                    <span class="bb-ams-humidity" data-bind="visible: humidity_index > 0, text: 'Humidity: ' + humidity_index + ' (raw: ' + humidity_raw + ')'"></span>
                 </div>
                 <div class="bb-ams-trays">
                     <!-- ko foreach: tray_exists -->
@@ -134,9 +282,15 @@
                 </div>
                 <div class="bb-ams-dryer">
                     <span data-bind="text: heater_state"></span>
-                    <span data-bind="visible: dry_time > 0, text: dry_time + ' min remaining'"></span>
+                    <span data-bind="visible: dry_time > 0">
+                        <span data-bind="text: dry_time + ' min remaining'"></span>
+                        <span data-bind="visible: temp_target > 0, text: '@ ' + temp_target + '°C'"></span>
+                    </span>
                     <button class="btn btn-mini" data-bind="click: function() { $parents[1].startAmsDryer(ams_id); }">Start Dryer</button>
                     <button class="btn btn-mini" data-bind="click: function() { $parents[1].stopAmsDryer(ams_id); }">Stop Dryer</button>
+                </div>
+                <div class="bb-ams-extruder-binding" data-bind="visible: assigned_to_extruder && assigned_to_extruder !== 'NOT_ACTIVE'">
+                    Feeds: <strong data-bind="text: assigned_to_extruder"></strong>
                 </div>
             </div>
         </div>
@@ -155,9 +309,57 @@
                         <div data-bind="text: $data.tray_type || 'Unknown'"></div>
                         <div data-bind="text: $data.tray_id_name || ''"></div>
                         <div data-bind="visible: $data.remain_percent >= 0, text: $data.remain_percent + '% remaining'"></div>
+                        <div data-bind="visible: $data.k > 0, text: 'K: ' + $data.k"></div>
+                        <div data-bind="visible: $data.tray_weight > 0, text: $data.tray_weight + 'g'"></div>
+                    </div>
+                    <div class="bb-spool-actions">
+                        <button class="btn btn-mini" data-bind="click: function() { $parents[1].openSpoolEditor($data); }" title="Edit spool details"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-mini" data-bind="click: function() { $parents[1].refreshSpoolRfid($data.slot_id, $data.ams_id); }" title="Refresh RFID"><i class="fas fa-tag"></i></button>
                     </div>
                 </div>
                 <!-- /ko -->
+            </div>
+        </div>
+    </div>
+    <!-- /ko -->
+
+    <!-- Spool Detail Editor Modal -->
+    <!-- ko if: spoolEditorVisible -->
+    <div class="bb-modal-overlay" data-bind="click: $parent.closeSpoolEditor">
+        <div class="bb-modal" data-bind="click: function(){}, clickBubble: false">
+            <h4>Edit Spool Details <button class="close" data-bind="click: $parent.closeSpoolEditor">&times;</button></h4>
+            <!-- ko with: editingSpool -->
+            <div class="control-group">
+                <label class="control-label">Name</label>
+                <div class="controls"><input type="text" data-bind="value: tray_id_name"></div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Type</label>
+                <div class="controls"><input type="text" data-bind="value: tray_type" placeholder="PLA, ABS, PETG..."></div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Color (hex)</label>
+                <div class="controls">
+                    <input type="text" data-bind="value: tray_color" placeholder="FF0000" style="width:100px">
+                    <span class="bb-spool-color" data-bind="style: { backgroundColor: '#' + (tray_color() || '808080') }" style="display:inline-block;vertical-align:middle;margin-left:6px"></span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Nozzle Temp Min</label>
+                <div class="controls"><input type="number" data-bind="value: nozzle_temp_min" style="width:80px"> °C</div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Nozzle Temp Max</label>
+                <div class="controls"><input type="number" data-bind="value: nozzle_temp_max" style="width:80px"> °C</div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Info Index</label>
+                <div class="controls"><input type="text" data-bind="value: tray_info_idx"></div>
+            </div>
+            <!-- /ko -->
+            <div class="bb-modal-footer">
+                <button class="btn btn-primary" data-bind="click: $parent.saveSpoolDetails">Save</button>
+                <button class="btn" data-bind="click: $parent.closeSpoolEditor">Cancel</button>
             </div>
         </div>
     </div>
@@ -194,6 +396,7 @@
                     <!-- ko if: $data.endsWith('.3mf') -->
                     <button class="btn btn-mini btn-primary" data-bind="click: function() { $parents[1].startPrint($data); }">Print</button>
                     <!-- /ko -->
+                    <button class="btn btn-mini" data-bind="click: function() { $parents[1].renameFile($data); }" title="Rename"><i class="fas fa-pen"></i></button>
                     <button class="btn btn-mini btn-danger" data-bind="click: function() { $parents[1].deleteFile($data); }"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
@@ -218,6 +421,16 @@
         </div>
     </div>
 
+    <!-- Raw JSON Console -->
+    <div class="bb-card">
+        <h4>Raw MQTT Console</h4>
+        <div class="bb-gcode-input">
+            <textarea rows="3" style="flex:1;font-family:monospace;font-size:12px;margin:0" placeholder='{"pushing":{"command":"M104 S200"}}' data-bind="value: rawJsonInput"></textarea>
+            <button class="btn" data-bind="click: $parent.sendAnything">Send</button>
+        </div>
+        <p class="help-block" style="margin:4px 0 0;font-size:11px">Send raw JSON payload directly to printer MQTT</p>
+    </div>
+
     <!-- Print Options -->
     <div class="bb-card">
         <h4>Print Options</h4>
@@ -237,6 +450,10 @@
             <label>
                 <input type="checkbox" data-bind="checked: autoSwitchFilament, click: function() { $parent.setPrintOption('AUTO_SWITCH_FILAMENT', !autoSwitchFilament()); return true; }">
                 Auto Switch Filament
+            </label>
+            <label>
+                <input type="checkbox" data-bind="checked: buildplateMarkerDetector, click: function() { $parent.setBuildplateMarkerDetector(!buildplateMarkerDetector()); return true; }">
+                Buildplate Marker Detector
             </label>
         </div>
     </div>

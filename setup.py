@@ -12,7 +12,9 @@ plugin_license = "AGPLv3"
 plugin_additional_data = []
 
 plugin_requires = ["paho-mqtt", "webcolors", "typing-extensions"]
-plugin_extra_requires = {}
+plugin_extra_requires = {
+    "camera": ["opencv-python-headless"],
+}
 plugin_additional_packages = [
     "octoprint_bambuboard._vendor",
     "octoprint_bambuboard._vendor.bpm",

@@ -1,18 +1,35 @@
 <div id="sidebar_plugin_bambuboard">
-    <div data-bind="foreach: printers">
+    <div class="bb-sidebar-section-header" data-bind="click: toggleSidebarCollapsed">
+        <i class="fas fa-cubes"></i>
+        <span>BambuBoard</span>
+        <span class="badge bb-sidebar-badge" data-bind="text: connectedPrinterCount, visible: connectedPrinterCount() > 0"></span>
+        <i class="fas bb-sidebar-chevron" data-bind="css: { 'fa-chevron-down': !sidebarCollapsed(), 'fa-chevron-right': sidebarCollapsed() }"></i>
+    </div>
+
+    <div data-bind="visible: !sidebarCollapsed()">
+        <!-- ko foreach: sidebarPrinters -->
         <div class="bb-sidebar-printer">
             <div class="bb-sidebar-header">
                 <span class="bb-status-dot" data-bind="css: statusClass()"></span>
                 <strong data-bind="text: name"></strong>
                 <small data-bind="text: printerModel"></small>
+                <!-- ko if: $parent.isPrinterNative($data) -->
+                <span class="bb-sidebar-native-badge" title="Connected via OctoPrint serial port">(Native)</span>
+                <!-- /ko -->
             </div>
             <div class="bb-sidebar-details">
                 <span data-bind="text: statusSummary, css: statusClass()"></span>
+                <!-- ko if: hmsErrors().length > 0 -->
+                <span class="bb-sidebar-hms-warn" title="HMS errors present"><i class="fas fa-exclamation-triangle"></i> <span data-bind="text: hmsErrors().length"></span></span>
+                <!-- /ko -->
             </div>
             <!-- ko if: connected() -->
             <div class="bb-sidebar-temps">
                 <span title="Bed"><i class="fas fa-grip-lines"></i> <span data-bind="text: bedTemp().toFixed(0) + '°C'"></span></span>
                 <span title="Nozzle"><i class="fas fa-pen-nib"></i> <span data-bind="text: nozzleTemp().toFixed(0) + '°C'"></span></span>
+                <!-- ko if: hasChamberTemp() -->
+                <span title="Chamber"><i class="fas fa-box"></i> <span data-bind="text: chamberTemp().toFixed(0) + '°C'"></span></span>
+                <!-- /ko -->
             </div>
             <!-- ko if: isPrinting() || isPaused() -->
             <div class="bb-sidebar-progress">
@@ -20,8 +37,18 @@
                     <div class="bb-mini-progress-bar" data-bind="style: { width: printPercentage() + '%' }"></div>
                 </div>
                 <span data-bind="text: printPercentage() + '%'"></span>
+                <span class="bb-sidebar-remaining" data-bind="text: remainingTimeFormatted, visible: remainingMinutes() > 0"></span>
             </div>
             <!-- /ko -->
+            <div class="bb-sidebar-actions">
+                <button class="btn btn-mini" data-bind="click: function() { $parent.selectedPrinterId(id); }, attr: { title: 'View ' + name() }"><i class="fas fa-eye"></i></button>
+                <!-- ko if: isPrinting() -->
+                <button class="btn btn-mini" data-bind="click: function() { $parent.pausePrinting(); $parent.selectedPrinterId(id); }" title="Pause"><i class="fas fa-pause"></i></button>
+                <!-- /ko -->
+                <!-- ko if: isPaused() -->
+                <button class="btn btn-mini" data-bind="click: function() { $parent.resumePrinting(); $parent.selectedPrinterId(id); }" title="Resume"><i class="fas fa-play"></i></button>
+                <!-- /ko -->
+            </div>
             <!-- /ko -->
             <!-- ko ifnot: connected() -->
             <div class="bb-sidebar-offline">
@@ -29,11 +56,17 @@
             </div>
             <!-- /ko -->
         </div>
-    </div>
+        <!-- /ko -->
 
-    <!-- ko if: printers().length === 0 -->
-    <div class="bb-sidebar-empty">
-        <small>No printers configured</small>
+        <!-- ko if: printers().length === 0 -->
+        <div class="bb-sidebar-empty">
+            <small>No printers configured</small>
+        </div>
+        <!-- /ko -->
+        <!-- ko if: printers().length > 0 && sidebarPrinters().length === 0 -->
+        <div class="bb-sidebar-empty">
+            <small data-bind="text: 'No ' + sidebarDisplayMode() + ' printers'"></small>
+        </div>
+        <!-- /ko -->
     </div>
-    <!-- /ko -->
 </div>

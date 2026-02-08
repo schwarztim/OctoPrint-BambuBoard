@@ -1,19 +1,49 @@
 <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="navbar_plugin_bambuboard">
     <i class="fas fa-cubes"></i>
     <span class="badge" data-bind="text: connectedPrinterCount, visible: connectedPrinterCount() > 0"></span>
+    <!-- ko if: totalHmsErrorCount() > 0 -->
+    <span class="badge bb-navbar-hms-badge" data-bind="text: totalHmsErrorCount" title="HMS errors across all printers"></span>
+    <!-- /ko -->
 </a>
 <ul class="dropdown-menu bb-navbar-dropdown">
     <li class="dropdown-header">Bambu Printers</li>
     <!-- ko foreach: printers -->
     <li>
         <a href="#tab_plugin_bambuboard" data-bind="click: function() { $parent.selectedPrinterId(id); }">
-            <span class="bb-status-dot bb-status-dot-inline" data-bind="css: statusClass()"></span>
+            <!-- ko if: isPrinting() -->
+            <i class="fas fa-print bb-navbar-icon-printing" title="Printing"></i>
+            <!-- /ko -->
+            <!-- ko if: isPaused() -->
+            <i class="fas fa-pause-circle bb-navbar-icon-paused" title="Paused"></i>
+            <!-- /ko -->
+            <!-- ko if: isIdle() && connected() -->
+            <i class="fas fa-check-circle bb-navbar-icon-idle" title="Idle"></i>
+            <!-- /ko -->
+            <!-- ko if: connected() && hmsErrors().length > 0 -->
+            <i class="fas fa-exclamation-triangle bb-navbar-icon-error" title="HMS Errors"></i>
+            <!-- /ko -->
+            <!-- ko ifnot: connected() -->
+            <i class="fas fa-times-circle bb-navbar-icon-disconnected" title="Disconnected"></i>
+            <!-- /ko -->
             <span data-bind="text: name"></span>
             <span class="bb-navbar-status" data-bind="text: statusSummary"></span>
         </a>
     </li>
+    <!-- ko if: isPrinting() || isPaused() -->
+    <li class="bb-navbar-actions">
+        <a href="#" data-bind="click: function(d, e) { e.stopPropagation(); if (isPrinting()) { $parent.pausePrinting(); $parent.selectedPrinterId(id); } else { $parent.resumePrinting(); $parent.selectedPrinterId(id); } }">
+            <i class="fas" data-bind="css: { 'fa-pause': isPrinting(), 'fa-play': isPaused() }"></i>
+            <span data-bind="text: isPrinting() ? 'Pause' : 'Resume'"></span>
+        </a>
+    </li>
     <!-- /ko -->
+    <!-- /ko -->
+    <li class="divider"></li>
     <!-- ko if: printers().length === 0 -->
     <li><a href="#settings_plugin_bambuboard"><i class="fas fa-cog"></i> Configure printers</a></li>
+    <!-- /ko -->
+    <!-- ko if: printers().length > 0 -->
+    <li><a href="#tab_plugin_bambuboard"><i class="fas fa-th-large"></i> Open Dashboard</a></li>
+    <li><a href="#settings_plugin_bambuboard"><i class="fas fa-cog"></i> Settings</a></li>
     <!-- /ko -->
 </ul>

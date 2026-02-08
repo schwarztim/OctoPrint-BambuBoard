@@ -23,6 +23,14 @@ $(function () {
     self.currentLayer = ko.observable(0);
     self.totalLayers = ko.observable(0);
     self.printError = ko.observable(0);
+    self.printType = ko.observable("");
+    self.current3mfFile = ko.observable("");
+    self.skippedObjects = ko.observableArray([]);
+
+    // Active tool / extruder (H2D)
+    self.activeTool = ko.observable("SINGLE_EXTRUDER");
+    self.isExternalSpoolActive = ko.observable(false);
+    self.targetTrayId = ko.observable(255);
 
     // Temperatures
     self.bedTemp = ko.observable(0);
@@ -41,6 +49,22 @@ $(function () {
     self.partFanSpeed = ko.observable(0);
     self.auxFanSpeed = ko.observable(0);
     self.exhaustFanSpeed = ko.observable(0);
+    self.heatbreakFanSpeed = ko.observable(0);
+
+    // Climate / Air Filtration
+    self.airductMode = ko.observable(0);
+    self.airductSubMode = ko.observable(0);
+    self.airConditioningMode = ko.observable("NOT_SUPPORTED");
+    self.zoneIntakeOpen = ko.observable(false);
+    self.zonePartFanPercent = ko.observable(0);
+    self.zoneAuxPercent = ko.observable(0);
+    self.zoneExhaustPercent = ko.observable(0);
+    self.zoneTopVentOpen = ko.observable(false);
+    self.isChamberDoorOpen = ko.observable(false);
+
+    // Nozzle details
+    self.nozzleDiameter = ko.observable("UNKNOWN");
+    self.nozzleType = ko.observable("UNKNOWN");
 
     // Guard flag: suppresses API calls when updating from server state
     self._updatingFromServer = false;
@@ -75,6 +99,15 @@ $(function () {
     self.soundEnable = ko.observable(false);
     self.autoSwitchFilament = ko.observable(false);
 
+    // AMS/Config settings
+    self.buildplateMarkerDetector = ko.observable(false);
+    self.startupReadOption = ko.observable(false);
+    self.trayReadOption = ko.observable(false);
+    self.calibrateRemainFlag = ko.observable(false);
+
+    // Wi-Fi signal
+    self.wifiSignal = ko.observable("");
+
     // Files
     self.sdCardContents = ko.observable(null);
     self.filesLoading = ko.observable(false);
@@ -87,6 +120,20 @@ $(function () {
     // G-code console
     self.gcodeInput = ko.observable("");
     self.gcodeHistory = ko.observableArray([]);
+
+    // Raw JSON console
+    self.rawJsonInput = ko.observable("");
+
+    // Skip objects input
+    self.skipObjectsInput = ko.observable("");
+
+    // Spool editor modal state
+    self.editingSpool = ko.observable(null);
+    self.spoolEditorVisible = ko.observable(false);
+
+    // Camera
+    self.cameraActive = ko.observable(false);
+    self.cameraAvailable = ko.observable(true); // assumed true until proven otherwise
 
     // Computed
     self.isPrinting = ko.computed(function () {
@@ -144,6 +191,11 @@ $(function () {
       return "bb-status-idle";
     });
 
+    self.cameraStreamUrl = ko.computed(function () {
+      if (!self.cameraActive()) return "";
+      return BASEURL + "plugin/bambuboard/camera/" + self.id + "/stream";
+    });
+
     self.updateFromState = function (state) {
       if (!state || typeof state !== "object") return;
 
@@ -161,6 +213,15 @@ $(function () {
       self.currentLayer(state.current_layer || 0);
       self.totalLayers(state.total_layers || 0);
       self.printError(state.print_error || 0);
+      self.printType(state.print_type || "");
+      self.current3mfFile(state.current_3mf_file || "");
+      self.skippedObjects(state.skipped_objects || []);
+
+      self.activeTool(state.active_tool || "SINGLE_EXTRUDER");
+      self.isExternalSpoolActive(state.is_external_spool_active || false);
+      self.targetTrayId(
+        state.target_tray_id != null ? state.target_tray_id : 255,
+      );
 
       self.bedTemp(state.bed_temp || 0);
       self.bedTempTarget(state.bed_temp_target || 0);
@@ -172,6 +233,20 @@ $(function () {
       self.partFanSpeed(state.part_fan_speed || 0);
       self.auxFanSpeed(state.aux_fan_speed || 0);
       self.exhaustFanSpeed(state.exhaust_fan_speed || 0);
+      self.heatbreakFanSpeed(state.heatbreak_fan_speed || 0);
+
+      self.airductMode(state.airduct_mode || 0);
+      self.airductSubMode(state.airduct_sub_mode || 0);
+      self.airConditioningMode(state.air_conditioning_mode || "NOT_SUPPORTED");
+      self.zoneIntakeOpen(state.zone_intake_open || false);
+      self.zonePartFanPercent(state.zone_part_fan_percent || 0);
+      self.zoneAuxPercent(state.zone_aux_percent || 0);
+      self.zoneExhaustPercent(state.zone_exhaust_percent || 0);
+      self.zoneTopVentOpen(state.zone_top_vent_open || false);
+      self.isChamberDoorOpen(state.is_chamber_door_open || false);
+
+      self.nozzleDiameter(state.nozzle_diameter || "UNKNOWN");
+      self.nozzleType(state.nozzle_type || "UNKNOWN");
 
       self.speedLevel(state.speed_level || 2);
       self.lightState(state.light_state || false);
@@ -199,6 +274,13 @@ $(function () {
       self.filamentTangleDetect(state.filament_tangle_detect || false);
       self.soundEnable(state.sound_enable || false);
       self.autoSwitchFilament(state.auto_switch_filament || false);
+
+      self.buildplateMarkerDetector(state.buildplate_marker_detector || false);
+      self.startupReadOption(state.startup_read_option || false);
+      self.trayReadOption(state.tray_read_option || false);
+      self.calibrateRemainFlag(state.calibrate_remain_flag || false);
+
+      self.wifiSignal(state.wifi_signal || "");
       self._updatingFromServer = false;
     };
 
@@ -232,6 +314,69 @@ $(function () {
       }).length;
     });
 
+    self.totalHmsErrorCount = ko.computed(function () {
+      var count = 0;
+      self.printers().forEach(function (p) {
+        count += p.hmsErrors().length;
+      });
+      return count;
+    });
+
+    // ── Sidebar state ─────────────────────────────────────────
+    self.sidebarCollapsed = ko.observable(false);
+
+    self.toggleSidebarCollapsed = function () {
+      self.sidebarCollapsed(!self.sidebarCollapsed());
+    };
+
+    self.sidebarDisplayMode = ko.computed(function () {
+      try {
+        return (
+          self.settings.settings.plugins.bambuboard.sidebar_display_mode() ||
+          "all"
+        );
+      } catch (e) {
+        return "all";
+      }
+    });
+
+    self.sidebarPrinters = ko.computed(function () {
+      var mode = self.sidebarDisplayMode();
+      var list = self.printers();
+      if (mode === "all") return list;
+      if (mode === "active") {
+        return list.filter(function (p) {
+          return p.isPrinting() || p.isPaused();
+        });
+      }
+      if (mode === "connected") {
+        return list.filter(function (p) {
+          return p.connected();
+        });
+      }
+      return list;
+    });
+
+    self.isPrinterNative = function (printer) {
+      // Check if this printer has virtual serial enabled in settings
+      try {
+        var configs =
+          self.settings.settings.plugins.bambuboard.printers() || [];
+        for (var i = 0; i < configs.length; i++) {
+          var c = configs[i];
+          var id = typeof c.id === "function" ? c.id() : c.id;
+          var reg =
+            typeof c.register_virtual_serial === "function"
+              ? c.register_virtual_serial()
+              : c.register_virtual_serial;
+          if (id === printer.id && reg) return true;
+        }
+      } catch (e) {
+        /* settings not loaded yet */
+      }
+      return false;
+    };
+
     // ── Settings: printer configs ─────────────────────────────
     self.printerConfigs = ko.observableArray([]);
 
@@ -245,6 +390,8 @@ $(function () {
         mqtt_port: ko.observable(8883),
         external_chamber: ko.observable(false),
         auto_connect: ko.observable(true),
+        register_virtual_serial: ko.observable(false),
+        camera_url: ko.observable(""),
         _testResult: ko.observable(""),
         _testing: ko.observable(false),
       });
@@ -304,6 +451,8 @@ $(function () {
           mqtt_port: parseInt(c.mqtt_port()) || 8883,
           external_chamber: c.external_chamber(),
           auto_connect: c.auto_connect(),
+          register_virtual_serial: c.register_virtual_serial(),
+          camera_url: c.camera_url(),
         });
       }
       self.settings.settings.plugins.bambuboard.printers(configs);
@@ -623,6 +772,186 @@ $(function () {
       event.target.value = "";
     };
 
+    // ── Phase 1B commands ─────────────────────────────────────
+
+    self.skipObjects = function () {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      var input = p.skipObjectsInput();
+      if (!input) return;
+      var objects = input
+        .split(",")
+        .map(function (s) {
+          return parseInt(s.trim());
+        })
+        .filter(function (n) {
+          return !isNaN(n);
+        });
+      if (objects.length === 0) return;
+      OctoPrint.simpleApiCommand("bambuboard", "skip_objects", {
+        printer_id: p.id,
+        objects: objects,
+      }).done(function () {
+        p.skipObjectsInput("");
+      });
+    };
+
+    self.openSpoolEditor = function (spool) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      p.editingSpool({
+        tray_id: spool.tray_id,
+        ams_id: spool.ams_id,
+        tray_info_idx: ko.observable(spool.tray_info_idx || ""),
+        tray_id_name: ko.observable(spool.tray_id_name || ""),
+        tray_type: ko.observable(spool.tray_type || ""),
+        tray_color: ko.observable(spool.tray_color || ""),
+        nozzle_temp_min: ko.observable(spool.nozzle_temp_min || 0),
+        nozzle_temp_max: ko.observable(spool.nozzle_temp_max || 0),
+      });
+      p.spoolEditorVisible(true);
+    };
+
+    self.closeSpoolEditor = function () {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      p.spoolEditorVisible(false);
+      p.editingSpool(null);
+    };
+
+    self.saveSpoolDetails = function () {
+      var p = self.selectedPrinter();
+      if (!p || !p.editingSpool()) return;
+      var s = p.editingSpool();
+      OctoPrint.simpleApiCommand("bambuboard", "set_spool_details", {
+        printer_id: p.id,
+        tray_id: s.tray_id,
+        ams_id: s.ams_id,
+        tray_info_idx: s.tray_info_idx(),
+        tray_id_name: s.tray_id_name(),
+        tray_type: s.tray_type(),
+        tray_color: s.tray_color(),
+        nozzle_temp_min: parseInt(s.nozzle_temp_min()) || 0,
+        nozzle_temp_max: parseInt(s.nozzle_temp_max()) || 0,
+      }).done(function () {
+        self.closeSpoolEditor();
+      });
+    };
+
+    self.refreshSpoolRfid = function (slotId, amsId) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "refresh_spool_rfid", {
+        printer_id: p.id,
+        slot_id: slotId,
+        ams_id: amsId,
+      });
+    };
+
+    self.setNozzleDetails = function (diameter, type) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "set_nozzle_details", {
+        printer_id: p.id,
+        nozzle_diameter: diameter,
+        nozzle_type: type,
+      });
+    };
+
+    self.setActiveTool = function (toolId) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "set_active_tool", {
+        printer_id: p.id,
+        tool_id: toolId,
+      });
+    };
+
+    self.sendAmsControlCommand = function (command) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "send_ams_control_command", {
+        printer_id: p.id,
+        ams_command: command,
+      });
+    };
+
+    self.setAmsUserSetting = function (setting, enabled, amsId) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "set_ams_user_setting", {
+        printer_id: p.id,
+        setting: setting,
+        enabled: enabled,
+        ams_id: amsId || 0,
+      });
+    };
+
+    self.setBuildplateMarkerDetector = function (enabled) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand(
+        "bambuboard",
+        "set_buildplate_marker_detector",
+        {
+          printer_id: p.id,
+          enabled: enabled,
+        },
+      );
+    };
+
+    self.sendAnything = function () {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      var payload = p.rawJsonInput();
+      if (!payload) return;
+      OctoPrint.simpleApiCommand("bambuboard", "send_anything", {
+        printer_id: p.id,
+        payload: payload,
+      }).done(function () {
+        p.gcodeHistory.unshift({
+          command: "RAW: " + payload,
+          time: new Date().toLocaleTimeString(),
+        });
+        if (p.gcodeHistory().length > 50) p.gcodeHistory.pop();
+        p.rawJsonInput("");
+      });
+    };
+
+    self.renameFile = function (path) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      var newName = prompt("New name:", path);
+      if (!newName || newName === path) return;
+      OctoPrint.simpleApiCommand("bambuboard", "rename_file", {
+        printer_id: p.id,
+        src: path,
+        dest: newName,
+      }).done(function () {
+        self.loadFiles();
+      });
+    };
+
+    // ── Camera commands ─────────────────────────────────────
+
+    self.toggleCameraStream = function () {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      p.cameraActive(!p.cameraActive());
+    };
+
+    self.cameraSnapshot = function () {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      var url =
+        BASEURL +
+        "plugin/bambuboard/camera/" +
+        p.id +
+        "/snapshot?t=" +
+        Date.now();
+      window.open(url, "_blank");
+    };
+
     // ── Internal helpers ──────────────────────────────────────
 
     self._findOrCreatePrinter = function (id, name) {
@@ -652,9 +981,20 @@ $(function () {
           }
         });
 
-        // Auto-select first printer if none selected
+        // Auto-select default or first printer
         if (!self.selectedPrinterId() && self.printers().length > 0) {
-          self.selectedPrinterId(self.printers()[0].id);
+          var defaultId =
+            self.settings.settings.plugins.bambuboard.default_printer_id();
+          if (
+            defaultId &&
+            self.printers().some(function (p) {
+              return p.id === defaultId;
+            })
+          ) {
+            self.selectedPrinterId(defaultId);
+          } else {
+            self.selectedPrinterId(self.printers()[0].id);
+          }
         }
       });
     };
@@ -673,6 +1013,10 @@ $(function () {
             mqtt_port: ko.observable(c.mqtt_port || 8883),
             external_chamber: ko.observable(c.external_chamber || false),
             auto_connect: ko.observable(c.auto_connect !== false),
+            register_virtual_serial: ko.observable(
+              c.register_virtual_serial || false,
+            ),
+            camera_url: ko.observable(c.camera_url || ""),
             _testResult: ko.observable(""),
             _testing: ko.observable(false),
           });

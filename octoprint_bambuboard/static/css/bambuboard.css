@@ -391,6 +391,32 @@
 }
 
 /* ── Sidebar ───────────────────────────────────────────── */
+.bb-sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  border-bottom: 2px solid #5cb85c;
+  margin-bottom: 4px;
+  user-select: none;
+}
+.bb-sidebar-section-header:hover {
+  color: #333;
+}
+.bb-sidebar-badge {
+  font-size: 10px;
+  background: #5cb85c;
+  vertical-align: middle;
+}
+.bb-sidebar-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: #999;
+}
 .bb-sidebar-printer {
   padding: 6px 0;
   border-bottom: 1px solid #eee;
@@ -407,10 +433,27 @@
 .bb-sidebar-header small {
   color: #888;
 }
+.bb-sidebar-native-badge {
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  background: #5bc0de;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 .bb-sidebar-details {
   font-size: 12px;
   margin: 2px 0;
   padding-left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bb-sidebar-hms-warn {
+  color: #c09853;
+  font-size: 11px;
 }
 .bb-sidebar-temps {
   display: flex;
@@ -427,6 +470,10 @@
   margin-top: 2px;
   font-size: 11px;
 }
+.bb-sidebar-remaining {
+  color: #888;
+  font-size: 10px;
+}
 .bb-mini-progress {
   flex: 1;
   max-width: 120px;
@@ -439,6 +486,16 @@
   height: 100%;
   background: #5cb85c;
   transition: width 0.5s ease;
+}
+.bb-sidebar-actions {
+  display: flex;
+  gap: 4px;
+  padding-left: 16px;
+  margin-top: 3px;
+}
+.bb-sidebar-actions .btn-mini {
+  padding: 1px 5px;
+  font-size: 10px;
 }
 .bb-sidebar-offline {
   padding-left: 16px;
@@ -458,8 +515,11 @@
   font-size: 10px;
   background: #5cb85c;
 }
+.bb-navbar-hms-badge {
+  background: #d9534f !important;
+}
 .bb-navbar-dropdown {
-  min-width: 250px;
+  min-width: 280px;
 }
 .bb-navbar-dropdown a {
   display: flex !important;
@@ -470,6 +530,31 @@
   margin-left: auto;
   font-size: 11px;
   color: #888;
+}
+.bb-navbar-icon-printing {
+  color: #5cb85c;
+}
+.bb-navbar-icon-paused {
+  color: #f0ad4e;
+}
+.bb-navbar-icon-idle {
+  color: #5bc0de;
+}
+.bb-navbar-icon-error {
+  color: #d9534f;
+}
+.bb-navbar-icon-disconnected {
+  color: #999;
+}
+.bb-navbar-actions {
+  padding-left: 26px;
+}
+.bb-navbar-actions a {
+  font-size: 12px;
+  color: #666;
+}
+.bb-navbar-actions a:hover {
+  color: #333;
 }
 
 /* ── Settings ──────────────────────────────────────────── */
@@ -495,6 +580,174 @@
 }
 .bb-test-result {
   font-size: 13px;
+}
+
+/* ── Camera ────────────────────────────────────────────── */
+.bb-camera-card {
+  position: relative;
+}
+.bb-camera-card h4 .btn {
+  margin-left: 6px;
+}
+.bb-camera-placeholder {
+  padding: 40px 20px;
+  text-align: center;
+  background: #1e1e1e;
+  color: #888;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.bb-camera-placeholder code {
+  color: #ce9178;
+  background: #2d2d2d;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.bb-camera-stream {
+  width: 100%;
+  border-radius: 4px;
+  display: block;
+  background: #000;
+}
+
+/* ── Skip Objects ──────────────────────────────────────── */
+.bb-skip-objects {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+}
+.bb-skipped-list {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background: #fcf8e3;
+  border-radius: 3px;
+}
+
+/* ── Air Filtration ────────────────────────────────────── */
+.bb-air-filtration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.bb-af-item {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  background: #f9f9f9;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.bb-af-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 2px;
+  letter-spacing: 0.03em;
+}
+
+/* ── Fan Readonly Bar ──────────────────────────────────── */
+.bb-fan-readonly-bar {
+  height: 6px;
+  background: #5bc0de;
+  border-radius: 3px;
+  max-width: 300px;
+  transition: width 0.5s ease;
+}
+
+/* ── AMS Chip ID ───────────────────────────────────────── */
+.bb-ams-chip-id {
+  font-family: monospace;
+  font-size: 10px;
+  color: #999;
+  background: #f5f5f5;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* ── AMS Extruder Binding ──────────────────────────────── */
+.bb-ams-extruder-binding {
+  font-size: 11px;
+  color: #666;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed #eee;
+}
+
+/* ── Spool Actions ─────────────────────────────────────── */
+.bb-spool-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.bb-spool-actions .btn-mini {
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+/* ── Modal Overlay ─────────────────────────────────────── */
+.bb-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bb-modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  max-width: 480px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+.bb-modal h4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 16px;
+}
+.bb-modal h4 .close {
+  font-size: 22px;
+  line-height: 1;
+  opacity: 0.6;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.bb-modal h4 .close:hover {
+  opacity: 1;
+}
+.bb-modal .control-group {
+  margin-bottom: 10px;
+}
+.bb-modal .control-label {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+.bb-modal-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 /* ── Empty State ───────────────────────────────────────── */
