@@ -25,21 +25,21 @@ Manage multiple Bambu Lab printers (P1S, X1C, A1, etc.) from a single OctoPrint 
 
 ## Installation
 
-Install via pip (in your OctoPrint virtual environment):
+1. Open OctoPrint Settings → **Plugin Manager**
+2. Click **Get More...**
+3. Paste this URL in the **...from URL** field:
+   ```
+   https://github.com/schwarztim/OctoPrint-BambuBoard/archive/main.zip
+   ```
+4. Click **Install** and restart OctoPrint
 
-```bash
-pip install https://github.com/schwarztim/OctoPrint-BambuBoard/archive/main.zip
-```
-
-Or clone and install for development:
+For development:
 
 ```bash
 git clone https://github.com/schwarztim/OctoPrint-BambuBoard.git
 cd OctoPrint-BambuBoard
 pip install -e .
 ```
-
-Restart OctoPrint after installation.
 
 ## Configuration
 

@@ -11,10 +11,8 @@ plugin_url = "https://github.com/schwarztim/OctoPrint-BambuBoard"
 plugin_license = "AGPLv3"
 plugin_additional_data = []
 
-plugin_requires = ["paho-mqtt", "webcolors", "typing-extensions"]
-plugin_extra_requires = {
-    "camera": ["opencv-python-headless"],
-}
+plugin_requires = ["paho-mqtt", "webcolors", "typing-extensions", "opencv-python-headless"]
+plugin_extra_requires = {}
 plugin_additional_packages = [
     "octoprint_bambuboard._vendor",
     "octoprint_bambuboard._vendor.bpm",
