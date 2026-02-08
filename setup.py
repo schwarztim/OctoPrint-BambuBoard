@@ -11,13 +11,17 @@ plugin_url = "https://github.com/schwarztim/OctoPrint-BambuBoard"
 plugin_license = "AGPLv3"
 plugin_additional_data = []
 
-plugin_requires = ["bambu-printer-manager>=0.5.4"]
+plugin_requires = ["paho-mqtt", "webcolors", "typing-extensions"]
 plugin_extra_requires = {}
-plugin_additional_packages = []
+plugin_additional_packages = [
+    "octoprint_bambuboard._vendor",
+    "octoprint_bambuboard._vendor.bpm",
+    "octoprint_bambuboard._vendor.bpm.ftpsclient",
+]
 plugin_ignored_packages = []
 
 additional_setup_parameters = {
-    "python_requires": ">=3.11,<4",
+    "python_requires": ">=3.10,<4",
 }
 
 try:

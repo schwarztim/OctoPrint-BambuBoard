@@ -3,3 +3,4 @@ include LICENSE
 include requirements.txt
 recursive-include octoprint_bambuboard/static *
 recursive-include octoprint_bambuboard/templates *
+recursive-include octoprint_bambuboard/_vendor *.py

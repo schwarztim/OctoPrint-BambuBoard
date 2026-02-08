@@ -1,1 +1,3 @@
-bambu-printer-manager>=0.5.4
+paho-mqtt
+webcolors
+typing-extensions

@@ -11,9 +11,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
-from bpm.bambuconfig import BambuConfig
-from bpm.bambuprinter import BambuPrinter
-from bpm.bambutools import ServiceState
+from ._vendor.bpm.bambuconfig import BambuConfig
+from ._vendor.bpm.bambuprinter import BambuPrinter
+from ._vendor.bpm.bambutools import ServiceState
 
 from .state_bridge import serialize_state
 

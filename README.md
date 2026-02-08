@@ -20,7 +20,7 @@ Manage multiple Bambu Lab printers (P1S, X1C, A1, etc.) from a single OctoPrint 
 ## Requirements
 
 - OctoPrint 1.5.0+
-- Python 3.7+
+- Python 3.10+
 - Network access to your Bambu Lab printer(s) on port 8883 (MQTT/TLS)
 
 ## Installation

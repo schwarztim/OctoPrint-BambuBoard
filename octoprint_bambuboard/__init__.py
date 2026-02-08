@@ -227,7 +227,7 @@ class BambuBoardPlugin(
 
     def _dispatch_printer_command(self, command, data, instance, printer_id):
         """Dispatch a command to the appropriate BambuPrinter method."""
-        from bpm.bambutools import PlateType, PrintOption
+        from ._vendor.bpm.bambutools import PlateType, PrintOption
 
         if command == "pause_printing":
             instance.pause_printing()
@@ -440,7 +440,7 @@ class BambuBoardPlugin(
 
 
 __plugin_name__ = "OctoPrint-BambuBoard"
-__plugin_pythoncompat__ = ">=3.11,<4"
+__plugin_pythoncompat__ = ">=3.10,<4"
 
 
 def __plugin_load__():
