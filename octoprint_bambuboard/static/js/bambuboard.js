@@ -5,8 +5,13 @@ $(function () {
     // Identity
     self.id = data.id || "";
     self.name = ko.observable(data.name || "Printer");
-    self.connected = ko.observable(data.connected || false);
+    self.connectionState = ko.observable(data.connection_state || "pending");
+    self.isNative = ko.observable(data.is_native || false);
     self.errorMessage = ko.observable(data.error_message || "");
+
+    self.connected = ko.computed(function () {
+      return self.connectionState() === "connected";
+    });
 
     // Connection
     self.serviceState = ko.observable("NO_STATE");
@@ -65,6 +70,23 @@ $(function () {
     // Nozzle details
     self.nozzleDiameter = ko.observable("UNKNOWN");
     self.nozzleType = ko.observable("UNKNOWN");
+
+    self.nozzleDiameterDisplay = ko.computed(function () {
+      var map = {
+        POINT_TWO_MM: "0.2",
+        POINT_FOUR_MM: "0.4",
+        POINT_SIX_MM: "0.6",
+        POINT_EIGHT_MM: "0.8",
+      };
+      return map[self.nozzleDiameter()] || self.nozzleDiameter();
+    });
+    self.nozzleTypeDisplay = ko.computed(function () {
+      var map = {
+        STAINLESS_STEEL: "Stainless Steel",
+        HARDENED_STEEL: "Hardened Steel",
+      };
+      return map[self.nozzleType()] || self.nozzleType();
+    });
 
     // Guard flag: suppresses API calls when updating from server state
     self._updatingFromServer = false;
@@ -151,7 +173,13 @@ $(function () {
     });
 
     self.statusSummary = ko.computed(function () {
-      if (!self.connected()) return "Disconnected";
+      var cs = self.connectionState();
+      if (cs === "pending") return "Pending\u2026";
+      if (cs === "connecting") return "Connecting\u2026";
+      if (cs === "reconnecting") return "Reconnecting\u2026";
+      if (cs === "error")
+        return "Error: " + (self.errorMessage() || "Connection failed");
+      if (cs !== "connected") return "Disconnected";
       var s = self.gcodeState();
       if (s === "RUNNING") return "Printing " + self.printPercentage() + "%";
       if (s === "PREPARE") return "Preparing";
@@ -183,7 +211,11 @@ $(function () {
     });
 
     self.statusClass = ko.computed(function () {
-      if (!self.connected()) return "bb-status-disconnected";
+      var cs = self.connectionState();
+      if (cs === "pending" || cs === "connecting" || cs === "reconnecting")
+        return "bb-status-connecting";
+      if (cs === "error") return "bb-status-error";
+      if (cs !== "connected") return "bb-status-disconnected";
       var s = self.gcodeState();
       if (s === "RUNNING" || s === "PREPARE") return "bb-status-printing";
       if (s === "PAUSE") return "bb-status-paused";
@@ -390,7 +422,7 @@ $(function () {
         mqtt_port: ko.observable(8883),
         external_chamber: ko.observable(false),
         auto_connect: ko.observable(true),
-        register_virtual_serial: ko.observable(false),
+        register_virtual_serial: ko.observable(true),
         camera_url: ko.observable(""),
         _testResult: ko.observable(""),
         _testing: ko.observable(false),
@@ -464,10 +496,20 @@ $(function () {
 
       if (data.type === "printer_update") {
         var printer = self._findOrCreatePrinter(data.printer_id, data.name);
-        printer.connected(data.connected || false);
+        printer.connectionState(
+          data.connection_state ||
+            (data.connected ? "connected" : "disconnected"),
+        );
+        printer.errorMessage(data.error_message || "");
+        if (data.printer_model) printer.printerModel(data.printer_model);
+        if (data.is_native !== undefined) printer.isNative(data.is_native);
         if (data.state) {
           printer.updateFromState(data.state);
         }
+      }
+
+      if (data.type === "connection_event") {
+        self._showConnectionToast(data);
       }
     };
 
@@ -478,6 +520,18 @@ $(function () {
 
     self.onAfterBinding = function () {
       self._loadAllStates();
+
+      // Dark mode: apply on load and subscribe to changes
+      try {
+        var darkObs = self.settings.settings.plugins.bambuboard.dark_mode;
+        var applyDark = function (enabled) {
+          document.body.classList.toggle("bb-dark-mode", !!enabled);
+        };
+        applyDark(darkObs());
+        darkObs.subscribe(applyDark);
+      } catch (e) {
+        /* settings not loaded yet */
+      }
     };
 
     self.onSettingsShown = function () {
@@ -756,7 +810,7 @@ $(function () {
         processData: false,
         contentType: false,
         headers: {
-          "X-CSRF-Token": OctoPrint.getCookie("csrf_token_bambuboard"),
+          "X-CSRF-Token": OctoPrint.getCookie("csrf_token"),
         },
       })
         .done(function () {
@@ -974,8 +1028,13 @@ $(function () {
         Object.keys(data.printers).forEach(function (pid) {
           var info = data.printers[pid];
           var printer = self._findOrCreatePrinter(pid, info.name);
-          printer.connected(info.connected || false);
+          printer.connectionState(
+            info.connection_state ||
+              (info.connected ? "connected" : "disconnected"),
+          );
           printer.errorMessage(info.error_message || "");
+          if (info.printer_model) printer.printerModel(info.printer_model);
+          if (info.is_native !== undefined) printer.isNative(info.is_native);
           if (info.state) {
             printer.updateFromState(info.state);
           }
@@ -1004,25 +1063,77 @@ $(function () {
       var configs = [];
       if (Array.isArray(raw)) {
         raw.forEach(function (c) {
+          // OctoPrint wraps each field in ko.observable — unwrap before re-wrapping
+          var u = ko.unwrap;
           configs.push({
-            id: ko.observable(c.id || self._generateUUID()),
-            name: ko.observable(c.name || ""),
-            hostname: ko.observable(c.hostname || ""),
-            access_code: ko.observable(c.access_code || ""),
-            serial_number: ko.observable(c.serial_number || ""),
-            mqtt_port: ko.observable(c.mqtt_port || 8883),
-            external_chamber: ko.observable(c.external_chamber || false),
-            auto_connect: ko.observable(c.auto_connect !== false),
+            id: ko.observable(u(c.id) || self._generateUUID()),
+            name: ko.observable(u(c.name) || ""),
+            hostname: ko.observable(u(c.hostname) || ""),
+            access_code: ko.observable(u(c.access_code) || ""),
+            serial_number: ko.observable(u(c.serial_number) || ""),
+            mqtt_port: ko.observable(u(c.mqtt_port) || 8883),
+            external_chamber: ko.observable(u(c.external_chamber) || false),
+            auto_connect: ko.observable(u(c.auto_connect) !== false),
             register_virtual_serial: ko.observable(
-              c.register_virtual_serial || false,
+              u(c.register_virtual_serial) !== false,
             ),
-            camera_url: ko.observable(c.camera_url || ""),
+            camera_url: ko.observable(u(c.camera_url) || ""),
             _testResult: ko.observable(""),
             _testing: ko.observable(false),
           });
         });
       }
       self.printerConfigs(configs);
+    };
+
+    // ── Connection helpers ──────────────────────────────────
+    self._showConnectionToast = function (data) {
+      if (typeof PNotify === "undefined") return;
+      try {
+        var type = "info";
+        if (data.event === "connected") type = "success";
+        if (data.event === "error") type = "error";
+        if (data.event === "disconnected") type = "notice";
+        new PNotify({
+          title: "BambuBoard",
+          text: data.message || data.event,
+          type: type,
+          hide: data.event !== "error",
+          delay: 5000,
+        });
+      } catch (e) {
+        console.warn("BambuBoard: PNotify error:", e);
+      }
+    };
+
+    self._printerConnectionClass = function (printerId) {
+      var list = self.printers();
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].id === printerId) {
+          var cs = list[i].connectionState();
+          if (cs === "connected") return "bb-status-dot-connected";
+          if (cs === "connecting" || cs === "reconnecting")
+            return "bb-status-dot-connecting";
+          if (cs === "error") return "bb-status-dot-error";
+          return "bb-status-dot-disconnected";
+        }
+      }
+      return "bb-status-dot-disconnected";
+    };
+
+    self._printerConnectionText = function (printerId) {
+      var list = self.printers();
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].id === printerId) {
+          var cs = list[i].connectionState();
+          if (cs === "connected") return "Connected";
+          if (cs === "connecting") return "Connecting\u2026";
+          if (cs === "reconnecting") return "Reconnecting\u2026";
+          if (cs === "error") return "Error";
+          return "Not connected";
+        }
+      }
+      return "Not connected";
     };
 
     self._generateUUID = function () {

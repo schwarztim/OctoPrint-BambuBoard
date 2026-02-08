@@ -55,6 +55,7 @@ class BambuBoardPlugin(
             "sidebar_show_all": True,
             "sidebar_display_mode": "all",
             "default_printer_id": "",
+            "dark_mode": False,
         }
 
     def on_settings_save(self, data):
@@ -144,6 +145,8 @@ class BambuBoardPlugin(
             printers[pid] = {
                 "name": info["name"],
                 "connected": info["connected"],
+                "connection_state": info.get("connection_state", "disconnected"),
+                "printer_model": info.get("printer_model", "UNKNOWN"),
                 "error_message": info.get("error_message", ""),
                 "state": info["state"],
             }
@@ -154,6 +157,8 @@ class BambuBoardPlugin(
                 printers[pid] = {
                     "name": name,
                     "connected": False,
+                    "connection_state": "disconnected",
+                    "printer_model": "UNKNOWN",
                     "error_message": "",
                     "state": {},
                 }
@@ -296,7 +301,10 @@ class BambuBoardPlugin(
             return flask.jsonify({"files": files})
 
         elif command == "start_print":
-            plate_type = PlateType[data.get("bed_type", "AUTO")]
+            try:
+                plate_type = PlateType[data.get("bed_type", "AUTO")]
+            except KeyError:
+                plate_type = PlateType.AUTO
             instance.print_3mf_file(
                 name=data["file"],
                 plate=int(data.get("plate", 1)),
@@ -524,7 +532,7 @@ class BambuBoardPlugin(
 
         printers = self._settings.get(["printers"]) or []
         for cfg in printers:
-            if cfg.get("register_virtual_serial", False):
+            if cfg.get("register_virtual_serial", True):
                 port_name = "BAMBU:{}".format(cfg.get("name", cfg["id"]))
                 if port_name not in candidates:
                     candidates.append(port_name)
@@ -567,6 +575,9 @@ class BambuBoardPlugin(
         if not hasattr(self, "_printer_manager"):
             return initial
 
+        if not isinstance(initial, dict):
+            initial = {}
+
         all_states = self._printer_manager.get_all_states()
         initial["bambuboard"] = all_states
         return initial
@@ -583,7 +594,22 @@ class BambuBoardPlugin(
                 "printer_id": printer_id,
                 "name": managed.name if managed else "Unknown",
                 "connected": managed.connected if managed else False,
+                "connection_state": managed.connection_state.value if managed else "disconnected",
+                "printer_model": managed.printer_model if managed else "UNKNOWN",
+                "error_message": managed.error_message if managed else "",
                 "state": state_dict,
+            },
+        )
+
+    def _send_connection_event(self, printer_id, event, message=""):
+        """Send a connection lifecycle event for toast notifications."""
+        self._plugin_manager.send_plugin_message(
+            self._identifier,
+            {
+                "type": "connection_event",
+                "printer_id": printer_id,
+                "event": event,
+                "message": message,
             },
         )
 

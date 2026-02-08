@@ -43,10 +43,10 @@
             <div class="bb-sidebar-actions">
                 <button class="btn btn-mini" data-bind="click: function() { $parent.selectedPrinterId(id); }, attr: { title: 'View ' + name() }"><i class="fas fa-eye"></i></button>
                 <!-- ko if: isPrinting() -->
-                <button class="btn btn-mini" data-bind="click: function() { $parent.pausePrinting(); $parent.selectedPrinterId(id); }" title="Pause"><i class="fas fa-pause"></i></button>
+                <button class="btn btn-mini" data-bind="click: function() { $parent.selectedPrinterId(id); $parent.pausePrinting(); }" title="Pause"><i class="fas fa-pause"></i></button>
                 <!-- /ko -->
                 <!-- ko if: isPaused() -->
-                <button class="btn btn-mini" data-bind="click: function() { $parent.resumePrinting(); $parent.selectedPrinterId(id); }" title="Resume"><i class="fas fa-play"></i></button>
+                <button class="btn btn-mini" data-bind="click: function() { $parent.selectedPrinterId(id); $parent.resumePrinting(); }" title="Resume"><i class="fas fa-play"></i></button>
                 <!-- /ko -->
             </div>
             <!-- /ko -->

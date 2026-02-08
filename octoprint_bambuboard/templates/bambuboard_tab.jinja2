@@ -14,7 +14,7 @@
         <span class="bb-status-meta">
             <span data-bind="text: printerModel"></span>
             <span data-bind="visible: firmwareVersion(), text: 'FW: ' + firmwareVersion()"></span>
-            <span data-bind="visible: nozzleDiameter() !== 'UNKNOWN', text: nozzleDiameter() + 'mm ' + nozzleType()"></span>
+            <span data-bind="visible: nozzleDiameter() !== 'UNKNOWN', text: nozzleDiameterDisplay() + 'mm ' + nozzleTypeDisplay()"></span>
             <span data-bind="visible: wifiSignal(), text: 'WiFi: ' + wifiSignal()"></span>
         </span>
     </div>
@@ -436,23 +436,23 @@
         <h4>Print Options</h4>
         <div class="bb-options-grid">
             <label>
-                <input type="checkbox" data-bind="checked: autoRecovery, click: function() { $parent.setPrintOption('AUTO_RECOVERY', !autoRecovery()); return true; }">
+                <input type="checkbox" data-bind="checked: autoRecovery, event: { change: function() { $parent.setPrintOption('AUTO_RECOVERY', autoRecovery()); } }">
                 Auto Recovery
             </label>
             <label>
-                <input type="checkbox" data-bind="checked: filamentTangleDetect, click: function() { $parent.setPrintOption('FILAMENT_TANGLE_DETECT', !filamentTangleDetect()); return true; }">
+                <input type="checkbox" data-bind="checked: filamentTangleDetect, event: { change: function() { $parent.setPrintOption('FILAMENT_TANGLE_DETECT', filamentTangleDetect()); } }">
                 Filament Tangle Detect
             </label>
             <label>
-                <input type="checkbox" data-bind="checked: soundEnable, click: function() { $parent.setPrintOption('SOUND_ENABLE', !soundEnable()); return true; }">
+                <input type="checkbox" data-bind="checked: soundEnable, event: { change: function() { $parent.setPrintOption('SOUND_ENABLE', soundEnable()); } }">
                 Sound
             </label>
             <label>
-                <input type="checkbox" data-bind="checked: autoSwitchFilament, click: function() { $parent.setPrintOption('AUTO_SWITCH_FILAMENT', !autoSwitchFilament()); return true; }">
+                <input type="checkbox" data-bind="checked: autoSwitchFilament, event: { change: function() { $parent.setPrintOption('AUTO_SWITCH_FILAMENT', autoSwitchFilament()); } }">
                 Auto Switch Filament
             </label>
             <label>
-                <input type="checkbox" data-bind="checked: buildplateMarkerDetector, click: function() { $parent.setBuildplateMarkerDetector(!buildplateMarkerDetector()); return true; }">
+                <input type="checkbox" data-bind="checked: buildplateMarkerDetector, event: { change: function() { $parent.setBuildplateMarkerDetector(buildplateMarkerDetector()); } }">
                 Buildplate Marker Detector
             </label>
         </div>
