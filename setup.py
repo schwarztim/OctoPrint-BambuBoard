@@ -17,7 +17,7 @@ plugin_additional_packages = []
 plugin_ignored_packages = []
 
 additional_setup_parameters = {
-    "python_requires": ">=3.7,<4",
+    "python_requires": ">=3.11,<4",
 }
 
 try:

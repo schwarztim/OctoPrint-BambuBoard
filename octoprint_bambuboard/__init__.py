@@ -440,7 +440,7 @@ class BambuBoardPlugin(
 
 
 __plugin_name__ = "OctoPrint-BambuBoard"
-__plugin_pythoncompat__ = ">=3.7,<4"
+__plugin_pythoncompat__ = ">=3.11,<4"
 
 
 def __plugin_load__():
