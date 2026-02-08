@@ -32,10 +32,18 @@ $(function () {
     self.chamberTemp = ko.observable(0);
     self.chamberTempTarget = ko.observable(0);
 
-    // Fans
+    // Editable target inputs (separate from server-reported targets)
+    self.bedTempInput = ko.observable("");
+    self.nozzleTempInput = ko.observable("");
+    self.chamberTempInput = ko.observable("");
+
+    // Fans (read-only from server, separate from slider targets)
     self.partFanSpeed = ko.observable(0);
     self.auxFanSpeed = ko.observable(0);
     self.exhaustFanSpeed = ko.observable(0);
+
+    // Guard flag: suppresses API calls when updating from server state
+    self._updatingFromServer = false;
 
     // Controls
     self.speedLevel = ko.observable(2);
@@ -70,6 +78,11 @@ $(function () {
     // Files
     self.sdCardContents = ko.observable(null);
     self.filesLoading = ko.observable(false);
+    self.fileList = ko.computed(function () {
+      var contents = self.sdCardContents();
+      if (!contents || typeof contents !== "object") return [];
+      return Object.keys(contents);
+    });
 
     // G-code console
     self.gcodeInput = ko.observable("");
@@ -134,6 +147,7 @@ $(function () {
     self.updateFromState = function (state) {
       if (!state || typeof state !== "object") return;
 
+      self._updatingFromServer = true;
       self.serviceState(state.service_state || "NO_STATE");
       self.printerModel(state.printer_model || "UNKNOWN");
       self.firmwareVersion(state.firmware_version || "");
@@ -185,6 +199,7 @@ $(function () {
       self.filamentTangleDetect(state.filament_tangle_detect || false);
       self.soundEnable(state.sound_enable || false);
       self.autoSwitchFilament(state.auto_switch_filament || false);
+      self._updatingFromServer = false;
     };
 
     // Initialize from provided data
@@ -387,45 +402,36 @@ $(function () {
     self.setBedTemp = function () {
       var p = self.selectedPrinter();
       if (!p) return;
-      var target = prompt("Set bed temperature target:", p.bedTempTarget());
-      if (target === null) return;
+      var val = parseInt(p.bedTempInput()) || 0;
       OctoPrint.simpleApiCommand("bambuboard", "set_bed_temp", {
         printer_id: p.id,
-        target: parseInt(target) || 0,
+        target: val,
       });
     };
 
     self.setNozzleTemp = function () {
       var p = self.selectedPrinter();
       if (!p) return;
-      var target = prompt(
-        "Set nozzle temperature target:",
-        p.nozzleTempTarget(),
-      );
-      if (target === null) return;
+      var val = parseInt(p.nozzleTempInput()) || 0;
       OctoPrint.simpleApiCommand("bambuboard", "set_nozzle_temp", {
         printer_id: p.id,
-        target: parseInt(target) || 0,
+        target: val,
       });
     };
 
     self.setChamberTemp = function () {
       var p = self.selectedPrinter();
       if (!p) return;
-      var target = prompt(
-        "Set chamber temperature target:",
-        p.chamberTempTarget(),
-      );
-      if (target === null) return;
+      var val = parseInt(p.chamberTempInput()) || 0;
       OctoPrint.simpleApiCommand("bambuboard", "set_chamber_temp", {
         printer_id: p.id,
-        target: parseInt(target) || 0,
+        target: val,
       });
     };
 
     self.setPartFan = function (vm, event) {
       var p = self.selectedPrinter();
-      if (!p) return;
+      if (!p || p._updatingFromServer) return;
       var val = parseInt(event.target.value) || 0;
       OctoPrint.simpleApiCommand("bambuboard", "set_part_fan", {
         printer_id: p.id,
@@ -435,7 +441,7 @@ $(function () {
 
     self.setAuxFan = function (vm, event) {
       var p = self.selectedPrinter();
-      if (!p) return;
+      if (!p || p._updatingFromServer) return;
       var val = parseInt(event.target.value) || 0;
       OctoPrint.simpleApiCommand("bambuboard", "set_aux_fan", {
         printer_id: p.id,
@@ -445,7 +451,7 @@ $(function () {
 
     self.setExhaustFan = function (vm, event) {
       var p = self.selectedPrinter();
-      if (!p) return;
+      if (!p || p._updatingFromServer) return;
       var val = parseInt(event.target.value) || 0;
       OctoPrint.simpleApiCommand("bambuboard", "set_exhaust_fan", {
         printer_id: p.id,
@@ -635,10 +641,6 @@ $(function () {
     self._loadAllStates = function () {
       OctoPrint.simpleApiGet("bambuboard").done(function (data) {
         if (!data || !data.printers) return;
-        var existing = {};
-        self.printers().forEach(function (p) {
-          existing[p.id] = true;
-        });
 
         Object.keys(data.printers).forEach(function (pid) {
           var info = data.printers[pid];

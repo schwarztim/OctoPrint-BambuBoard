@@ -9,6 +9,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from typing import Dict, Optional
 
 from bpm.bambuconfig import BambuConfig
 from bpm.bambuprinter import BambuPrinter
@@ -32,7 +33,7 @@ class ManagedPrinter:
     last_state: dict = field(default_factory=dict)
     error_message: str = ""
     reconnect_attempts: int = 0
-    _reconnect_timer: threading.Timer = field(default=None, repr=False)
+    _reconnect_timer: Optional[threading.Timer] = field(default=None, repr=False)
 
 
 class PrinterManager:
@@ -40,33 +41,32 @@ class PrinterManager:
 
     def __init__(self, plugin):
         self._plugin = plugin
-        self._printers: dict[str, ManagedPrinter] = {}
+        self._printers = {}  # type: Dict[str, ManagedPrinter]
         self._lock = threading.Lock()
 
-    def connect_all(self, printer_configs: list):
+    def connect_all(self, printer_configs):
+        # type: (list) -> None
         """Connect all printers marked auto_connect=True."""
         for cfg in printer_configs:
             if cfg.get("auto_connect", True):
                 try:
                     self.connect_printer(cfg)
                 except Exception:
-                    _logger.exception("Failed to connect printer %s", cfg.get("name", cfg.get("id", "unknown")))
+                    _logger.exception(
+                        "Failed to connect printer %s",
+                        cfg.get("name", cfg.get("id", "unknown")),
+                    )
 
-    def connect_printer(self, printer_cfg: dict) -> str:
+    def connect_printer(self, printer_cfg):
+        # type: (dict) -> str
         """Create a BambuPrinter from config dict and start its MQTT session.
 
-        Returns the printer_id.
+        Returns the printer_id. The entire check-create-insert sequence is
+        performed under a single lock acquisition to prevent races.
         """
         printer_id = printer_cfg.get("id", str(uuid.uuid4()))
 
-        with self._lock:
-            if printer_id in self._printers:
-                existing = self._printers[printer_id]
-                if existing.connected:
-                    _logger.info("Printer %s already connected, skipping", printer_id)
-                    return printer_id
-                self._disconnect_no_lock(printer_id)
-
+        # Build the BambuPrinter outside the lock (no shared state yet)
         bambu_config = BambuConfig(
             hostname=printer_cfg["hostname"],
             access_code=printer_cfg["access_code"],
@@ -74,7 +74,6 @@ class PrinterManager:
             mqtt_port=printer_cfg.get("mqtt_port", 8883),
             external_chamber=printer_cfg.get("external_chamber", False),
         )
-
         bambu_printer = BambuPrinter(config=bambu_config)
         bambu_printer.on_update = self._create_on_update_callback(printer_id)
 
@@ -86,26 +85,38 @@ class PrinterManager:
         )
 
         with self._lock:
+            # Atomically check for existing, disconnect if needed, insert new
+            if printer_id in self._printers:
+                existing = self._printers[printer_id]
+                if existing.connected:
+                    _logger.info("Printer %s already connected, skipping", printer_id)
+                    # Clean up the unused instance we just created
+                    return printer_id
+                self._disconnect_no_lock(printer_id)
             self._printers[printer_id] = managed
 
         _logger.info("Starting MQTT session for printer %s (%s)", managed.name, printer_id)
         try:
             bambu_printer.start_session()
-            managed.connected = True
-            managed.reconnect_attempts = 0
-            managed.error_message = ""
+            with self._lock:
+                managed.connected = True
+                managed.reconnect_attempts = 0
+                managed.error_message = ""
         except Exception as e:
-            managed.error_message = str(e)
+            with self._lock:
+                managed.error_message = str(e)
             _logger.exception("Failed to start session for %s", managed.name)
 
         return printer_id
 
-    def disconnect_printer(self, printer_id: str):
+    def disconnect_printer(self, printer_id):
+        # type: (str) -> None
         """Stop MQTT session and remove printer from management."""
         with self._lock:
             self._disconnect_no_lock(printer_id)
 
-    def _disconnect_no_lock(self, printer_id: str):
+    def _disconnect_no_lock(self, printer_id):
+        # type: (str) -> None
         """Internal disconnect — must be called while holding self._lock."""
         managed = self._printers.pop(printer_id, None)
         if managed is None:
@@ -123,13 +134,15 @@ class PrinterManager:
         managed.connected = False
         _logger.info("Disconnected printer %s (%s)", managed.name, printer_id)
 
-    def reconnect_printer(self, printer_id: str, printer_cfg: dict):
+    def reconnect_printer(self, printer_id, printer_cfg):
+        # type: (str, dict) -> None
         """Disconnect then reconnect a printer with (possibly updated) config."""
         with self._lock:
             self._disconnect_no_lock(printer_id)
         self.connect_printer(printer_cfg)
 
     def shutdown_all(self):
+        # type: () -> None
         """Gracefully quit all printer sessions."""
         with self._lock:
             ids = list(self._printers.keys())
@@ -140,12 +153,14 @@ class PrinterManager:
             except Exception:
                 _logger.exception("Error shutting down printer %s", pid)
 
-    def get_printer(self, printer_id: str):
+    def get_printer(self, printer_id):
+        # type: (str) -> Optional[ManagedPrinter]
         """Get a ManagedPrinter by ID, or None."""
         with self._lock:
             return self._printers.get(printer_id)
 
-    def get_all_states(self) -> dict:
+    def get_all_states(self):
+        # type: () -> dict
         """Return {printer_id: {name, connected, state}} for all printers."""
         with self._lock:
             result = {}
@@ -158,7 +173,8 @@ class PrinterManager:
                 }
             return result
 
-    def _create_on_update_callback(self, printer_id: str):
+    def _create_on_update_callback(self, printer_id):
+        # type: (str) -> callable
         """Create a throttled callback for a specific printer.
 
         Fires from BambuPrinter's internal MQTT thread. Kept lightweight:
@@ -198,7 +214,8 @@ class PrinterManager:
 
         return callback
 
-    def _schedule_reconnect(self, printer_id: str, managed: ManagedPrinter):
+    def _schedule_reconnect(self, printer_id, managed):
+        # type: (str, ManagedPrinter) -> None
         """Schedule a reconnection attempt after a delay."""
         managed.reconnect_attempts += 1
         delay = RECONNECT_DELAY_SECONDS * managed.reconnect_attempts
@@ -208,7 +225,6 @@ class PrinterManager:
             managed.name, managed.reconnect_attempts, MAX_RECONNECT_ATTEMPTS, delay,
         )
 
-        # Build config dict from the managed printer's existing config
         cfg = self._config_dict_from_managed(managed)
 
         timer = threading.Timer(delay, self._do_reconnect, args=(printer_id, cfg))
@@ -216,7 +232,8 @@ class PrinterManager:
         managed._reconnect_timer = timer
         timer.start()
 
-    def _do_reconnect(self, printer_id: str, printer_cfg: dict):
+    def _do_reconnect(self, printer_id, printer_cfg):
+        # type: (str, dict) -> None
         """Execute a reconnection attempt."""
         _logger.info("Attempting reconnect for printer %s", printer_id)
         try:
@@ -225,7 +242,8 @@ class PrinterManager:
             _logger.exception("Reconnect failed for printer %s", printer_id)
 
     @staticmethod
-    def _config_dict_from_managed(managed: ManagedPrinter) -> dict:
+    def _config_dict_from_managed(managed):
+        # type: (ManagedPrinter) -> dict
         """Extract a config dict from a ManagedPrinter for reconnection."""
         cfg = managed.config
         return {
@@ -239,8 +257,8 @@ class PrinterManager:
             "auto_connect": True,
         }
 
-    def test_connection(self, hostname: str, access_code: str, serial_number: str,
-                        mqtt_port: int = 8883) -> dict:
+    def test_connection(self, hostname, access_code, serial_number, mqtt_port=8883):
+        # type: (str, str, str, int) -> dict
         """Test MQTT connectivity to a printer without keeping the connection.
 
         Returns {"success": bool, "message": str, "printer_model": str}.
@@ -267,12 +285,10 @@ class PrinterManager:
 
         try:
             test_printer.start_session()
-            if connected_event.wait(timeout=15):
-                pass
-            else:
+            if not connected_event.wait(timeout=15):
                 result["message"] = "Connection timed out after 15 seconds"
         except Exception as e:
-            result["message"] = f"Connection failed: {e}"
+            result["message"] = "Connection failed: {}".format(e)
         finally:
             try:
                 test_printer.quit()

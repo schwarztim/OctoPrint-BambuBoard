@@ -42,20 +42,29 @@
             <h4>Bed</h4>
             <div class="bb-temp-value" data-bind="text: bedTemp().toFixed(1) + '°C'"></div>
             <div class="bb-temp-target">Target: <span data-bind="text: bedTempTarget() + '°C'"></span></div>
-            <button class="btn btn-small" data-bind="click: $parent.setBedTemp">Set</button>
+            <div class="input-append">
+                <input type="number" min="0" max="120" placeholder="°C" style="width:60px" data-bind="value: bedTempInput">
+                <button class="btn btn-small" data-bind="click: $parent.setBedTemp">Set</button>
+            </div>
         </div>
         <div class="bb-card bb-temp-card">
             <h4>Nozzle</h4>
             <div class="bb-temp-value" data-bind="text: nozzleTemp().toFixed(1) + '°C'"></div>
             <div class="bb-temp-target">Target: <span data-bind="text: nozzleTempTarget() + '°C'"></span></div>
-            <button class="btn btn-small" data-bind="click: $parent.setNozzleTemp">Set</button>
+            <div class="input-append">
+                <input type="number" min="0" max="300" placeholder="°C" style="width:60px" data-bind="value: nozzleTempInput">
+                <button class="btn btn-small" data-bind="click: $parent.setNozzleTemp">Set</button>
+            </div>
         </div>
         <!-- ko if: hasChamberTemp -->
         <div class="bb-card bb-temp-card">
             <h4>Chamber</h4>
             <div class="bb-temp-value" data-bind="text: chamberTemp().toFixed(1) + '°C'"></div>
             <div class="bb-temp-target">Target: <span data-bind="text: chamberTempTarget() + '°C'"></span></div>
-            <button class="btn btn-small" data-bind="click: $parent.setChamberTemp">Set</button>
+            <div class="input-append">
+                <input type="number" min="0" max="70" placeholder="°C" style="width:60px" data-bind="value: chamberTempInput">
+                <button class="btn btn-small" data-bind="click: $parent.setChamberTemp">Set</button>
+            </div>
         </div>
         <!-- /ko -->
     </div>
@@ -179,7 +188,7 @@
             </label>
         </h4>
         <div data-bind="visible: sdCardContents()">
-            <div data-bind="foreach: Object.keys(sdCardContents() || {})" class="bb-file-list">
+            <div data-bind="foreach: fileList" class="bb-file-list">
                 <div class="bb-file-item">
                     <span class="bb-file-name" data-bind="text: $data"></span>
                     <!-- ko if: $data.endsWith('.3mf') -->

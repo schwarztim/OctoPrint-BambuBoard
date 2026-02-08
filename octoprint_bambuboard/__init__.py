@@ -1,9 +1,11 @@
 """OctoPrint-BambuBoard — Multi-printer Bambu Lab dashboard for OctoPrint."""
 
+import atexit
 import logging
 import os
+import posixpath
+import shutil
 import tempfile
-import uuid
 
 import flask
 import octoprint.plugin
@@ -325,11 +327,16 @@ class BambuBoardPlugin(
         if uploaded.filename == "":
             return flask.jsonify({"error": "Empty filename"}), 400
 
-        remote_path = flask.request.form.get("path", f"/{uploaded.filename}")
+        # Sanitize filename — strip path components
+        safe_filename = os.path.basename(uploaded.filename)
+        if not safe_filename:
+            return flask.jsonify({"error": "Invalid filename"}), 400
 
-        # Save to temp file, upload, clean up
+        remote_path = flask.request.form.get("path", "/{}".format(safe_filename))
+        remote_path = self._sanitize_remote_path(remote_path)
+
         tmp_dir = tempfile.mkdtemp()
-        local_path = os.path.join(tmp_dir, uploaded.filename)
+        local_path = os.path.join(tmp_dir, safe_filename)
         try:
             uploaded.save(local_path)
             self._file_manager.upload_file(printer_id, local_path, remote_path)
@@ -338,10 +345,7 @@ class BambuBoardPlugin(
             _logger.exception("Upload failed for %s", printer_id)
             return flask.jsonify({"error": str(e)}), 500
         finally:
-            if os.path.exists(local_path):
-                os.remove(local_path)
-            if os.path.exists(tmp_dir):
-                os.rmdir(tmp_dir)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     @octoprint.plugin.BlueprintPlugin.route("/download/<printer_id>", methods=["GET"])
     def download_file(self, printer_id):
@@ -349,20 +353,47 @@ class BambuBoardPlugin(
         if not remote_path:
             return flask.jsonify({"error": "No path specified"}), 400
 
-        filename = os.path.basename(remote_path)
+        remote_path = self._sanitize_remote_path(remote_path)
+        filename = posixpath.basename(remote_path)
+        if not filename:
+            return flask.jsonify({"error": "Invalid path"}), 400
+
         tmp_dir = tempfile.mkdtemp()
         local_path = os.path.join(tmp_dir, filename)
 
         try:
             self._file_manager.download_file(printer_id, remote_path, local_path)
-            return flask.send_file(
-                local_path,
-                as_attachment=True,
-                download_name=filename,
-            )
+
+            # Read into memory so we can clean up the temp dir immediately
+            with open(local_path, "rb") as f:
+                data = f.read()
         except Exception as e:
             _logger.exception("Download failed for %s", printer_id)
             return flask.jsonify({"error": str(e)}), 500
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        response = flask.make_response(data)
+        response.headers["Content-Type"] = "application/octet-stream"
+        response.headers["Content-Disposition"] = "attachment; filename={}".format(filename)
+        return response
+
+    @staticmethod
+    def _sanitize_remote_path(path):
+        """Normalize and validate a remote SD card path.
+
+        Prevents path traversal by collapsing '..' components and ensuring
+        the result stays under the root '/'.
+        """
+        # Normalize using posixpath (FTP paths are always unix-style)
+        normalized = posixpath.normpath(path)
+        # Ensure it starts with /
+        if not normalized.startswith("/"):
+            normalized = "/" + normalized
+        # After normpath, any '../' at the start would escape root — reject
+        if "/.." in normalized or normalized == "/..":
+            raise ValueError("Path traversal detected: {}".format(path))
+        return normalized
 
     def is_blueprint_csrf_protected(self):
         return True
@@ -410,7 +441,7 @@ class BambuBoardPlugin(
 
 __plugin_name__ = "OctoPrint-BambuBoard"
 __plugin_pythoncompat__ = ">=3.7,<4"
-__plugin_implementation__ = BambuBoardPlugin()
+
 
 def __plugin_load__():
     global __plugin_implementation__
