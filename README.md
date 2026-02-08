@@ -341,10 +341,21 @@ Send commands. All commands require a `command` field and most require a `printe
 | `/plugin/bambuboard/camera/<printer_id>/stream`   | GET    | MJPEG camera stream                |
 | `/plugin/bambuboard/camera/<printer_id>/snapshot` | GET    | Single JPEG frame                  |
 
-## Credits
+## Acknowledgments
 
-- Built on the [bambu-printer-manager](https://github.com/synman/bambu-printer-manager) library by [synman](https://github.com/synman)
-- Designed for [OctoPrint](https://octoprint.org/) by [Gina Haussge](https://github.com/foosel)
+This plugin would not be possible without the following projects:
+
+### bambu-printer-manager
+
+**BambuBoard is built on top of [bambu-printer-manager](https://github.com/synman/bambu-printer-manager) (BPM) by [synman](https://github.com/synman)** — an all-in-one pure Python wrapper for interacting with and managing Bambu Lab printers. BPM provides the core MQTT communication, printer state tracking, command execution, FTP file management, and hardware abstraction that powers every feature in this plugin. The BPM library is vendored directly into the plugin to ensure compatibility with OctoPrint's Python 3.10 environment.
+
+- GitHub: [synman/bambu-printer-manager](https://github.com/synman/bambu-printer-manager)
+- Documentation: [synman.github.io/bambu-printer-manager](https://synman.github.io/bambu-printer-manager/)
+- Docker (standalone): [synman.github.io/bambu-printer-manager/container](https://synman.github.io/bambu-printer-manager/container/#installation)
+
+### OctoPrint
+
+Built for [OctoPrint](https://octoprint.org/) — the open-source 3D printer management platform by [Gina Haussge](https://github.com/foosel).
 
 ## License
 
