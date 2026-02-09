@@ -23,6 +23,13 @@
             </label>
         </div>
         <div class="control-group">
+            <label class="control-label">
+                <input type="checkbox" data-bind="checked: settings.settings.plugins.bambuboard.dark_mode">
+                Dark Mode
+            </label>
+            <span class="help-inline">Apply dark theme to entire OctoPrint interface</span>
+        </div>
+        <div class="control-group">
             <label class="control-label">Sidebar Display Mode</label>
             <div class="controls">
                 <select data-bind="value: settings.settings.plugins.bambuboard.sidebar_display_mode">

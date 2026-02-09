@@ -850,6 +850,35 @@ $(function () {
       });
     };
 
+    // Look up spool data for a specific AMS tray position.
+    // amsId = AMS unit index (0-based), slotIndex = tray position within unit (0-3)
+    self.getSpoolForTray = function (amsId, slotIndex) {
+      var p = self.selectedPrinter();
+      if (!p) return null;
+      var spools = p.spools();
+      for (var i = 0; i < spools.length; i++) {
+        var s = spools[i];
+        if (s && s.ams_id === amsId && s.slot_id === slotIndex) return s;
+      }
+      return null;
+    };
+
+    // Get external spool (vt_tray, ams_id typically 255 or -1)
+    self.getExternalSpool = function () {
+      var p = self.selectedPrinter();
+      if (!p) return null;
+      var spools = p.spools();
+      for (var i = 0; i < spools.length; i++) {
+        var s = spools[i];
+        if (
+          s &&
+          (s.ams_id === 255 || s.ams_id === -1 || s.id === 254 || s.id === 255)
+        )
+          return s;
+      }
+      return null;
+    };
+
     self.openSpoolEditor = function (spool) {
       var p = self.selectedPrinter();
       if (!p) return;

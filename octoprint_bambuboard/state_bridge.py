@@ -124,18 +124,23 @@ def serialize_spool(spool) -> dict:
     if spool is None:
         return None
 
+    # BambuSpool attributes: id, name, type, sub_brands, color,
+    # tray_info_idx, k, bed_temp, nozzle_temp_min, nozzle_temp_max,
+    # drying_temp, drying_time, remaining_percent, state, total_length,
+    # tray_weight, slot_id, ams_id
     return {
         "id": getattr(spool, "id", -1),
-        "tray_id": getattr(spool, "tray_id", -1),
+        "tray_id": getattr(spool, "id", -1),
         "ams_id": getattr(spool, "ams_id", -1),
         "slot_id": getattr(spool, "slot_id", -1),
         "tray_info_idx": getattr(spool, "tray_info_idx", ""),
-        "tray_type": getattr(spool, "tray_type", ""),
-        "tray_color": getattr(spool, "tray_color", ""),
-        "tray_id_name": getattr(spool, "tray_id_name", ""),
+        "tray_type": getattr(spool, "type", ""),
+        "tray_color": getattr(spool, "color", ""),
+        "tray_id_name": getattr(spool, "name", ""),
+        "sub_brands": getattr(spool, "sub_brands", ""),
         "nozzle_temp_min": getattr(spool, "nozzle_temp_min", 0),
         "nozzle_temp_max": getattr(spool, "nozzle_temp_max", 0),
-        "remain_percent": getattr(spool, "remain", -1),
+        "remain_percent": getattr(spool, "remaining_percent", -1),
         "k": getattr(spool, "k", 0),
         "bed_temp": getattr(spool, "bed_temp", 0),
         "drying_temp": getattr(spool, "drying_temp", 0),

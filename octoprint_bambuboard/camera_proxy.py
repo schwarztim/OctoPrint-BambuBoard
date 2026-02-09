@@ -7,10 +7,15 @@ Requires: opencv-python-headless (optional dependency, gated behind try/except).
 """
 
 import logging
+import os
 import threading
 import time
 
 _logger = logging.getLogger("octoprint.plugins.bambuboard.camera_proxy")
+
+# Bambu printers use self-signed TLS certs for RTSPS streams.
+# Tell FFmpeg (used by OpenCV) to accept them.
+os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|analyzeduration;1000000")
 
 try:
     import cv2
@@ -75,11 +80,20 @@ class RTSPStream:
 
     def _capture_loop(self):
         """Background loop: read RTSP frames, encode to JPEG."""
-        self._cap = cv2.VideoCapture(self._url)
+        # Use TCP transport for reliability; set short analyze duration for faster start.
+        # CAP_FFMPEG is required for rtsps:// (TLS) support.
+        self._cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
         if not self._cap.isOpened():
             _logger.error("Failed to open RTSP stream: %s", self._url)
-            self._running = False
-            return
+            # Try fallback without TLS (rtsp:// instead of rtsps://)
+            fallback_url = self._url.replace("rtsps://", "rtsp://", 1)
+            if fallback_url != self._url:
+                _logger.info("Trying fallback without TLS: %s", fallback_url)
+                self._cap = cv2.VideoCapture(fallback_url, cv2.CAP_FFMPEG)
+            if not self._cap.isOpened():
+                _logger.error("All RTSP connection attempts failed for: %s", self._url)
+                self._running = False
+                return
 
         frame_interval = 1.0 / self.FPS_CAP
         encode_params = [cv2.IMWRITE_JPEG_QUALITY, self.JPEG_QUALITY]
@@ -97,7 +111,7 @@ class RTSPStream:
                 time.sleep(2)
                 # Reconnect
                 self._cap.release()
-                self._cap = cv2.VideoCapture(self._url)
+                self._cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
                 continue
 
             # Resize to 720p max width
@@ -155,7 +169,7 @@ class CameraProxy:
         if not hostname or not access_code:
             return None
 
-        return f"rtsp://bblp:{access_code}@{hostname}:322/streaming/live/1"
+        return f"rtsps://bblp:{access_code}@{hostname}:322/streaming/live/1"
 
     def get_or_start_stream(self, printer_id):
         """Get an active stream, starting it if needed."""

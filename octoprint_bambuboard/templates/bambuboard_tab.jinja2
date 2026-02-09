@@ -266,18 +266,12 @@
                 <div class="bb-ams-header">
                     <strong data-bind="text: 'AMS ' + ($index() + 1)"></strong>
                     <span data-bind="text: model"></span>
-                    <span class="bb-ams-chip-id" data-bind="visible: chip_id, text: chip_id" title="Chip ID"></span>
                     <span data-bind="visible: temp_actual > 0, text: temp_actual.toFixed(1) + '°C'"></span>
-                    <span class="bb-ams-humidity" data-bind="visible: humidity_index > 0, text: 'Humidity: ' + humidity_index + ' (raw: ' + humidity_raw + ')'"></span>
+                    <span class="bb-ams-humidity" data-bind="visible: humidity_index > 0, text: 'Humidity: ' + humidity_index"></span>
                 </div>
                 <div class="bb-ams-trays">
                     <!-- ko foreach: tray_exists -->
-                    <div class="bb-ams-tray" data-bind="css: { 'bb-tray-present': $data }">
-                        <span class="bb-tray-number" data-bind="text: 'Tray ' + ($index() + 1)"></span>
-                        <!-- ko if: $data -->
-                        <button class="btn btn-mini" data-bind="click: function() { $parents[2].loadFilament($index(), $parent.ams_id); }">Load</button>
-                        <!-- /ko -->
-                    </div>
+                    <!-- ko template: { name: 'bb-tray-slot', data: { exists: $data, slotIndex: $index(), amsId: $parent.ams_id, spool: $parents[2].getSpoolForTray($parent.ams_id, $index()) } } --><!-- /ko -->
                     <!-- /ko -->
                 </div>
                 <div class="bb-ams-dryer">
@@ -289,36 +283,27 @@
                     <button class="btn btn-mini" data-bind="click: function() { $parents[1].startAmsDryer(ams_id); }">Start Dryer</button>
                     <button class="btn btn-mini" data-bind="click: function() { $parents[1].stopAmsDryer(ams_id); }">Stop Dryer</button>
                 </div>
-                <div class="bb-ams-extruder-binding" data-bind="visible: assigned_to_extruder && assigned_to_extruder !== 'NOT_ACTIVE'">
-                    Feeds: <strong data-bind="text: assigned_to_extruder"></strong>
-                </div>
             </div>
-        </div>
-        <div class="bb-ams-actions">
-            <button class="btn btn-small" data-bind="click: function() { $parent.unloadFilament(0); }"><i class="fas fa-eject"></i> Unload Filament</button>
         </div>
 
-        <!-- Spools -->
-        <div data-bind="visible: spools().length > 0">
-            <h5>Loaded Spools</h5>
-            <div class="bb-spool-grid" data-bind="foreach: spools">
-                <!-- ko if: $data -->
-                <div class="bb-spool-card">
-                    <div class="bb-spool-color" data-bind="style: { backgroundColor: '#' + ($data.tray_color || '808080') }"></div>
-                    <div class="bb-spool-info">
-                        <div data-bind="text: $data.tray_type || 'Unknown'"></div>
-                        <div data-bind="text: $data.tray_id_name || ''"></div>
-                        <div data-bind="visible: $data.remain_percent >= 0, text: $data.remain_percent + '% remaining'"></div>
-                        <div data-bind="visible: $data.k > 0, text: 'K: ' + $data.k"></div>
-                        <div data-bind="visible: $data.tray_weight > 0, text: $data.tray_weight + 'g'"></div>
-                    </div>
-                    <div class="bb-spool-actions">
-                        <button class="btn btn-mini" data-bind="click: function() { $parents[1].openSpoolEditor($data); }" title="Edit spool details"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-mini" data-bind="click: function() { $parents[1].refreshSpoolRfid($data.slot_id, $data.ams_id); }" title="Refresh RFID"><i class="fas fa-tag"></i></button>
-                    </div>
+        <!-- External Spool -->
+        <div class="bb-ams-external" data-bind="with: $parent.getExternalSpool()">
+            <div class="bb-ams-tray bb-tray-present bb-tray-external">
+                <div class="bb-tray-color-bar" data-bind="style: { backgroundColor: $data.tray_color || '#808080' }"></div>
+                <div class="bb-tray-content">
+                    <span class="bb-tray-number">Ext</span>
+                    <span class="bb-tray-type" data-bind="text: $data.tray_type || 'Empty'"></span>
+                    <span class="bb-tray-name" data-bind="visible: $data.tray_id_name, text: $data.tray_id_name"></span>
+                    <span class="bb-tray-remain" data-bind="visible: $data.remain_percent >= 0, text: $data.remain_percent + '%'"></span>
                 </div>
-                <!-- /ko -->
+                <div class="bb-tray-actions">
+                    <button class="btn btn-mini" data-bind="click: function() { $parents[1].openSpoolEditor($data); }" title="Edit"><i class="fas fa-edit"></i></button>
+                </div>
             </div>
+        </div>
+
+        <div class="bb-ams-actions">
+            <button class="btn btn-small" data-bind="click: function() { $parent.unloadFilament(0); }"><i class="fas fa-eject"></i> Unload Filament</button>
         </div>
     </div>
     <!-- /ko -->
@@ -469,3 +454,41 @@
     </div>
     <!-- /ko -->
 </div>
+
+<!-- AMS Tray Slot Template -->
+<script type="text/html" id="bb-tray-slot">
+    <div class="bb-ams-tray" data-bind="css: { 'bb-tray-present': exists, 'bb-tray-active': spool && $parents[2] && $parents[2].activeTrayId && ($parents[2].activeTrayId() === (amsId * 4 + slotIndex)) }">
+        <!-- Color bar at top -->
+        <!-- ko if: spool -->
+        <div class="bb-tray-color-bar" data-bind="style: { backgroundColor: spool.tray_color || '#808080' }"></div>
+        <!-- /ko -->
+        <!-- ko ifnot: spool -->
+        <div class="bb-tray-color-bar" style="background-color: #ddd"></div>
+        <!-- /ko -->
+        <div class="bb-tray-content">
+            <span class="bb-tray-number" data-bind="text: (slotIndex + 1)"></span>
+            <!-- ko if: spool -->
+            <span class="bb-tray-type" data-bind="text: spool.tray_type || '?'"></span>
+            <span class="bb-tray-name" data-bind="visible: spool.tray_id_name, text: spool.tray_id_name"></span>
+            <span class="bb-tray-remain" data-bind="visible: spool.remain_percent >= 0, text: spool.remain_percent + '%'"></span>
+            <!-- /ko -->
+            <!-- ko ifnot: spool -->
+            <!-- ko if: exists -->
+            <span class="bb-tray-type bb-tray-empty">Empty</span>
+            <!-- /ko -->
+            <!-- ko ifnot: exists -->
+            <span class="bb-tray-type bb-tray-none">—</span>
+            <!-- /ko -->
+            <!-- /ko -->
+        </div>
+        <div class="bb-tray-actions">
+            <!-- ko if: exists -->
+            <button class="btn btn-mini bb-tray-load-btn" data-bind="click: function() { $parents[3].loadFilament(slotIndex, amsId); }" title="Load filament">Load</button>
+            <!-- /ko -->
+            <!-- ko if: spool -->
+            <button class="btn btn-mini" data-bind="click: function() { $parents[3].openSpoolEditor(spool); }" title="Edit"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-mini" data-bind="click: function() { $parents[3].refreshSpoolRfid(spool.slot_id, spool.ams_id); }" title="Refresh RFID"><i class="fas fa-tag"></i></button>
+            <!-- /ko -->
+        </div>
+    </div>
+</script>
