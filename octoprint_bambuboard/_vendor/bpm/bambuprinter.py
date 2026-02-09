@@ -183,7 +183,10 @@ class BambuPrinter:
             raise Exception("a session is already active")
 
         def on_connect(client, userdata, flags, reason_code, properties):
-            logger.debug("on_connect - session on_connect")
+            logger.debug(f"on_connect - reason_code: {reason_code}")
+            if reason_code != 0:
+                logger.error(f"on_connect - connection refused: {reason_code}")
+                return
             if self.service_state != ServiceState.PAUSED:
                 self.service_state = ServiceState.CONNECTED
                 client.subscribe(f"device/{self.config.serial_number}/report")
@@ -215,7 +218,11 @@ class BambuPrinter:
                     printer.client.disconnect()
             printer.service_state = ServiceState.QUIT
 
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)  # type: ignore
+        self.client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2,
+            client_id=self.config.mqtt_client_id,
+            clean_session=True,
+        )  # type: ignore
 
         self.client.on_connect = on_connect
         self.client.on_disconnect = on_disconnect
@@ -228,7 +235,7 @@ class BambuPrinter:
         self.client.username_pw_set(
             self.config.mqtt_username, password=self.config.access_code
         )
-        self.client.user_data_set(self.config.mqtt_client_id)
+        # client_id is now set on the constructor — user_data_set not needed
 
         try:
             self.client.connect(self.config.hostname, self.config.mqtt_port, 60)
@@ -287,6 +294,11 @@ class BambuPrinter:
         if self.client and self.client.is_connected():
             self.client.disconnect()
             logger.debug("quit - mqtt client was connected and is now disconnected")
+        elif self.client:
+            # Force socket close even if not "connected" per paho
+            with contextlib.suppress(Exception):
+                self.client.loop_stop()
+            logger.debug("quit - mqtt client was not connected, forced loop_stop")
         else:
             logger.debug("quit - mqtt client was already disconnected")
 
@@ -888,6 +900,43 @@ class BambuPrinter:
         logger.debug(
             f"set_buildplate_marker_detector - published XCAM_CONTROL_SET to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
+
+    def set_camera_recording(self, enabled: bool) -> None:
+        """Enable or disable the printer's built-in camera recording."""
+        command = {
+            "camera": {
+                "sequence_id": "0",
+                "command": "ipcam_record_set",
+                "control": "enable" if enabled else "disable",
+            }
+        }
+        self._publish_command(command)
+        logger.debug(
+            f"set_camera_recording - published ipcam_record_set ({enabled}) to [device/{self.config.serial_number}/request]"
+        )
+
+    def set_camera_timelapse(self, enabled: bool) -> None:
+        """Enable or disable timelapse recording."""
+        command = {
+            "camera": {
+                "sequence_id": "0",
+                "command": "ipcam_timelapse",
+                "control": "enable" if enabled else "disable",
+            }
+        }
+        self._publish_command(command)
+        logger.debug(
+            f"set_camera_timelapse - published ipcam_timelapse ({enabled}) to [device/{self.config.serial_number}/request]"
+        )
+
+    def home_axes(self, axes: str = "XYZ") -> None:
+        """Home specified axes. Default: all (XYZ)."""
+        self.send_gcode(f"G28 {axes}".strip())
+
+    def jog(self, x: float = 0, y: float = 0, z: float = 0, feed_rate: int = 3000) -> None:
+        """Relative jog movement. Units in mm, feed_rate in mm/min."""
+        gcode = f"G91\nG1 X{x} Y{y} Z{z} F{feed_rate}\nG90"
+        self.send_gcode(gcode)
 
     def set_nozzle_details(
         self, nozzle_diameter: NozzleDiameter, nozzle_type: NozzleType

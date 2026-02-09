@@ -15,7 +15,7 @@ _logger = logging.getLogger("octoprint.plugins.bambuboard.camera_proxy")
 
 # Bambu printers use self-signed TLS certs for RTSPS streams.
 # Tell FFmpeg (used by OpenCV) to accept them.
-os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|analyzeduration;1000000")
+os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|analyzeduration;1000000|tls_verify;0")
 
 try:
     import cv2
@@ -31,7 +31,7 @@ class RTSPStream:
 
     FPS_CAP = 15
     JPEG_QUALITY = 70
-    INACTIVITY_TIMEOUT = 60  # seconds before auto-stop
+    INACTIVITY_TIMEOUT = 300  # 5 minutes before auto-stop
 
     def __init__(self, rtsp_url):
         self._url = rtsp_url
@@ -84,7 +84,7 @@ class RTSPStream:
         # CAP_FFMPEG is required for rtsps:// (TLS) support.
         self._cap = cv2.VideoCapture(self._url, cv2.CAP_FFMPEG)
         if not self._cap.isOpened():
-            _logger.error("Failed to open RTSP stream: %s", self._url)
+            _logger.error("Failed to open RTSP stream (check TLS/cert): %s", self._url)
             # Try fallback without TLS (rtsp:// instead of rtsps://)
             fallback_url = self._url.replace("rtsps://", "rtsp://", 1)
             if fallback_url != self._url:

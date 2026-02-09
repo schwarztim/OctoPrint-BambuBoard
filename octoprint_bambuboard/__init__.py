@@ -232,6 +232,13 @@ class BambuBoardPlugin(
             "rename_file": ["printer_id", "src", "dest"],
             "pause_session": ["printer_id"],
             "resume_session": ["printer_id"],
+            # Phase C: parity controls
+            "delete_folder": ["printer_id", "path"],
+            "file_exists": ["printer_id", "path"],
+            "set_camera_recording": ["printer_id", "enabled"],
+            "set_camera_timelapse": ["printer_id", "enabled"],
+            "home_axes": ["printer_id"],
+            "jog": ["printer_id"],
         }
 
     def on_api_command(self, command, data):
@@ -431,6 +438,33 @@ class BambuBoardPlugin(
 
         elif command == "resume_session":
             instance.resume_session()
+
+        # ── Phase C: parity controls ──
+
+        elif command == "delete_folder":
+            result = instance.delete_sdcard_folder(data["path"])
+            return flask.jsonify({"success": True, "files": result})
+
+        elif command == "file_exists":
+            exists = instance.sdcard_file_exists(data["path"])
+            return flask.jsonify({"exists": exists})
+
+        elif command == "set_camera_recording":
+            instance.set_camera_recording(bool(data["enabled"]))
+
+        elif command == "set_camera_timelapse":
+            instance.set_camera_timelapse(bool(data["enabled"]))
+
+        elif command == "home_axes":
+            instance.home_axes(data.get("axes", "XYZ"))
+
+        elif command == "jog":
+            instance.jog(
+                x=float(data.get("x", 0)),
+                y=float(data.get("y", 0)),
+                z=float(data.get("z", 0)),
+                feed_rate=int(data.get("feed_rate", 3000)),
+            )
 
         else:
             return flask.jsonify({"error": f"Unknown command: {command}"}), 400

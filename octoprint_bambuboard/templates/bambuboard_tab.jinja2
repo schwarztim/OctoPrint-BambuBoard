@@ -41,6 +41,21 @@
             <i class="fas fa-exclamation-circle"></i> Install <code>opencv-python-headless</code> to enable camera
         </div>
         <!-- /ko -->
+        <!-- Camera Recording / Timelapse Controls -->
+        <div class="bb-camera-controls" style="margin-top:8px;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-mini" data-bind="click: function() { $parent.toggleCameraRecording(true); }" title="Start recording">
+                <i class="fas fa-circle" style="color:#e74c3c"></i> Record
+            </button>
+            <button class="btn btn-mini" data-bind="click: function() { $parent.toggleCameraRecording(false); }" title="Stop recording">
+                <i class="fas fa-stop"></i> Stop Rec
+            </button>
+            <button class="btn btn-mini" data-bind="click: function() { $parent.toggleTimelapse(true); }" title="Enable timelapse">
+                <i class="fas fa-film"></i> Timelapse On
+            </button>
+            <button class="btn btn-mini" data-bind="click: function() { $parent.toggleTimelapse(false); }" title="Disable timelapse">
+                <i class="fas fa-film"></i> Timelapse Off
+            </button>
+        </div>
     </div>
     <!-- /ko -->
 
@@ -234,6 +249,45 @@
         </div>
     </div>
 
+    <!-- Movement Jog Controls -->
+    <div class="bb-card">
+        <h4><i class="fas fa-arrows-alt"></i> Movement</h4>
+        <div class="bb-jog-grid" style="display:grid;grid-template-columns:auto auto auto;gap:4px;max-width:260px;margin:0 auto;text-align:center">
+            <!-- Row 1: Y+ -->
+            <div></div>
+            <button class="btn btn-small" data-bind="click: function() { $parent.jogPrinter('Y', 10); }" title="Y+10">
+                <i class="fas fa-arrow-up"></i> Y+
+            </button>
+            <div></div>
+            <!-- Row 2: X- Home X+ -->
+            <button class="btn btn-small" data-bind="click: function() { $parent.jogPrinter('X', -10); }" title="X-10">
+                <i class="fas fa-arrow-left"></i> X-
+            </button>
+            <button class="btn btn-small btn-primary" data-bind="click: $parent.homeAxes" title="Home all axes">
+                <i class="fas fa-home"></i>
+            </button>
+            <button class="btn btn-small" data-bind="click: function() { $parent.jogPrinter('X', 10); }" title="X+10">
+                X+ <i class="fas fa-arrow-right"></i>
+            </button>
+            <!-- Row 3: Y- -->
+            <div></div>
+            <button class="btn btn-small" data-bind="click: function() { $parent.jogPrinter('Y', -10); }" title="Y-10">
+                <i class="fas fa-arrow-down"></i> Y-
+            </button>
+            <div></div>
+        </div>
+        <!-- Z axis: separate column -->
+        <div style="display:flex;justify-content:center;gap:8px;margin-top:8px">
+            <button class="btn btn-small" data-bind="click: function() { $parent.jogPrinter('Z', 10); }" title="Z+10">
+                <i class="fas fa-arrow-up"></i> Z+
+            </button>
+            <button class="btn btn-small" data-bind="click: function() { $parent.jogPrinter('Z', -10); }" title="Z-10">
+                <i class="fas fa-arrow-down"></i> Z-
+            </button>
+        </div>
+        <p class="help-block" style="text-align:center;margin:6px 0 0;font-size:11px">10mm steps, 3000 mm/min</p>
+    </div>
+
     <!-- AMS Section -->
     <!-- ko if: hasAms -->
     <div class="bb-card">
@@ -412,7 +466,12 @@
                     <button class="btn btn-mini btn-primary" data-bind="click: function() { $parents[1].startPrint($data); }">Print</button>
                     <!-- /ko -->
                     <button class="btn btn-mini" data-bind="click: function() { $parents[1].renameFile($data); }" title="Rename"><i class="fas fa-pen"></i></button>
+                    <!-- ko if: $data.endsWith('/') -->
+                    <button class="btn btn-mini btn-danger" data-bind="click: function() { $parents[1].deleteFolder($data); }" title="Delete folder"><i class="fas fa-folder-minus"></i></button>
+                    <!-- /ko -->
+                    <!-- ko ifnot: $data.endsWith('/') -->
                     <button class="btn btn-mini btn-danger" data-bind="click: function() { $parents[1].deleteFile($data); }"><i class="fas fa-trash"></i></button>
+                    <!-- /ko -->
                 </div>
             </div>
         </div>

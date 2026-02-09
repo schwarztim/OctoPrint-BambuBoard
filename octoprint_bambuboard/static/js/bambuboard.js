@@ -1116,6 +1116,59 @@ $(function () {
       window.open(url, "_blank");
     };
 
+    // ── Phase C: Movement jog controls ─────────────────────────
+
+    self.homeAxes = function () {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "home_axes", {
+        printer_id: p.id,
+        axes: "XYZ",
+      });
+    };
+
+    self.jogPrinter = function (axis, distance) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      var payload = { printer_id: p.id, x: 0, y: 0, z: 0 };
+      payload[axis.toLowerCase()] = distance;
+      OctoPrint.simpleApiCommand("bambuboard", "jog", payload);
+    };
+
+    // ── Phase C: Camera recording / timelapse toggles ────────
+
+    self.toggleCameraRecording = function (enabled) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "set_camera_recording", {
+        printer_id: p.id,
+        enabled: enabled,
+      });
+    };
+
+    self.toggleTimelapse = function (enabled) {
+      var p = self.selectedPrinter();
+      if (!p) return;
+      OctoPrint.simpleApiCommand("bambuboard", "set_camera_timelapse", {
+        printer_id: p.id,
+        enabled: enabled,
+      });
+    };
+
+    // ── Phase C: Folder deletion ─────────────────────────────
+
+    self.deleteFolder = function (path) {
+      var p = self.selectedPrinter();
+      if (!p || !confirm("Delete folder " + path + " and all contents?"))
+        return;
+      OctoPrint.simpleApiCommand("bambuboard", "delete_folder", {
+        printer_id: p.id,
+        path: path,
+      }).done(function () {
+        self.loadFiles();
+      });
+    };
+
     // ── Internal helpers ──────────────────────────────────────
 
     self._findOrCreatePrinter = function (id, name) {
