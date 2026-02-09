@@ -1,4 +1,65 @@
 $(function () {
+  // ── Filament Presets & Color Palette ─────────────────────────────
+  var FILAMENT_PRESETS = {
+    PLA: { min: 190, max: 230, idx: "GFL99" },
+    "PLA+": { min: 200, max: 230, idx: "GFL01" },
+    "PLA Silk": { min: 200, max: 230, idx: "GFL98" },
+    PETG: { min: 220, max: 260, idx: "GFG99" },
+    ABS: { min: 240, max: 270, idx: "GFA00" },
+    ASA: { min: 240, max: 270, idx: "GFA05" },
+    TPU: { min: 200, max: 230, idx: "GFU99" },
+    "PA/Nylon": { min: 260, max: 300, idx: "GFN99" },
+    PC: { min: 260, max: 300, idx: "GFC99" },
+    PVA: { min: 190, max: 210, idx: "GFS99" },
+    HIPS: { min: 220, max: 250, idx: "" },
+    "Wood PLA": { min: 190, max: 220, idx: "" },
+    "CF-PLA": { min: 210, max: 240, idx: "" },
+    "CF-PETG": { min: 240, max: 270, idx: "" },
+  };
+  var FILAMENT_TYPES = Object.keys(FILAMENT_PRESETS);
+
+  var FILAMENT_COLORS = [
+    { name: "White", hex: "FFFFFF" },
+    { name: "Black", hex: "000000" },
+    { name: "Gray", hex: "808080" },
+    { name: "Silver", hex: "C0C0C0" },
+    { name: "Red", hex: "FF0000" },
+    { name: "Dark Red", hex: "8B0000" },
+    { name: "Orange", hex: "FF6600" },
+    { name: "Yellow", hex: "FFD700" },
+    { name: "Lemon", hex: "FFFF00" },
+    { name: "Lime", hex: "00FF00" },
+    { name: "Green", hex: "00AA00" },
+    { name: "Dark Green", hex: "006400" },
+    { name: "Teal", hex: "008080" },
+    { name: "Cyan", hex: "00FFFF" },
+    { name: "Light Blue", hex: "87CEEB" },
+    { name: "Blue", hex: "0000FF" },
+    { name: "Navy", hex: "000080" },
+    { name: "Purple", hex: "800080" },
+    { name: "Violet", hex: "8B00FF" },
+    { name: "Pink", hex: "FF69B4" },
+    { name: "Hot Pink", hex: "FF1493" },
+    { name: "Magenta", hex: "FF00FF" },
+    { name: "Brown", hex: "8B4513" },
+    { name: "Tan", hex: "D2B48C" },
+    { name: "Gold", hex: "DAA520" },
+    { name: "Beige", hex: "F5DEB3" },
+    { name: "Natural", hex: "F0E68C" },
+    { name: "Olive", hex: "808000" },
+    { name: "Bambu Green", hex: "0ACC38" },
+    { name: "Fire Red", hex: "F72323" },
+    { name: "Sky Blue", hex: "4A90D9" },
+    { name: "Transparent", hex: "E8E8E8" },
+  ];
+
+  function normalizeColor(c) {
+    // Strip # prefix and alpha channel (8th char pair) from Bambu hex colors
+    var s = (c || "").replace(/^#/, "").toUpperCase();
+    if (s.length === 8) s = s.substring(0, 6);
+    return s;
+  }
+
   function PrinterViewModel(data) {
     var self = this;
 
@@ -326,6 +387,10 @@ $(function () {
     var self = this;
     self.loginState = parameters[0];
     self.settings = parameters[1];
+
+    // Expose presets for templates
+    self.filamentTypes = FILAMENT_TYPES;
+    self.filamentColors = FILAMENT_COLORS;
 
     // ── Printer list ──────────────────────────────────────────
     self.printers = ko.observableArray([]);
@@ -882,16 +947,26 @@ $(function () {
     self.openSpoolEditor = function (spool) {
       var p = self.selectedPrinter();
       if (!p) return;
-      p.editingSpool({
+      var editing = {
         tray_id: spool.tray_id,
         ams_id: spool.ams_id,
         tray_info_idx: ko.observable(spool.tray_info_idx || ""),
         tray_id_name: ko.observable(spool.tray_id_name || ""),
         tray_type: ko.observable(spool.tray_type || ""),
-        tray_color: ko.observable(spool.tray_color || ""),
+        tray_color: ko.observable(normalizeColor(spool.tray_color)),
         nozzle_temp_min: ko.observable(spool.nozzle_temp_min || 0),
         nozzle_temp_max: ko.observable(spool.nozzle_temp_max || 0),
+      };
+      // Auto-fill temps when filament type changes
+      editing.tray_type.subscribe(function (newType) {
+        var preset = FILAMENT_PRESETS[newType];
+        if (preset) {
+          editing.nozzle_temp_min(preset.min);
+          editing.nozzle_temp_max(preset.max);
+          if (preset.idx) editing.tray_info_idx(preset.idx);
+        }
       });
+      p.editingSpool(editing);
       p.spoolEditorVisible(true);
     };
 
@@ -906,6 +981,9 @@ $(function () {
       var p = self.selectedPrinter();
       if (!p || !p.editingSpool()) return;
       var s = p.editingSpool();
+      // Normalize color: 6-char hex + FF alpha, no # prefix
+      var color = normalizeColor(s.tray_color());
+      if (color && color.length === 6) color = color + "FF";
       OctoPrint.simpleApiCommand("bambuboard", "set_spool_details", {
         printer_id: p.id,
         tray_id: s.tray_id,
@@ -913,7 +991,7 @@ $(function () {
         tray_info_idx: s.tray_info_idx(),
         tray_id_name: s.tray_id_name(),
         tray_type: s.tray_type(),
-        tray_color: s.tray_color(),
+        tray_color: color,
         nozzle_temp_min: parseInt(s.nozzle_temp_min()) || 0,
         nozzle_temp_max: parseInt(s.nozzle_temp_max()) || 0,
       }).done(function () {

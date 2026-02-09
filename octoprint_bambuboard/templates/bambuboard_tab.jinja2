@@ -311,36 +311,66 @@
     <!-- Spool Detail Editor Modal -->
     <!-- ko if: spoolEditorVisible -->
     <div class="bb-modal-overlay" data-bind="click: $parent.closeSpoolEditor">
-        <div class="bb-modal" data-bind="click: function(){}, clickBubble: false">
-            <h4>Edit Spool Details <button class="close" data-bind="click: $parent.closeSpoolEditor">&times;</button></h4>
+        <div class="bb-modal bb-spool-editor" data-bind="click: function(){}, clickBubble: false">
+            <h4>Edit Spool
+                <span class="bb-spool-preview" data-bind="style: { backgroundColor: '#' + (editingSpool().tray_color() || '808080') }"></span>
+                <span data-bind="text: editingSpool().tray_type() || 'Unknown'"></span>
+                <button class="close" data-bind="click: $parent.closeSpoolEditor">&times;</button>
+            </h4>
             <!-- ko with: editingSpool -->
+
+            <!-- Filament Type Dropdown -->
             <div class="control-group">
-                <label class="control-label">Name</label>
-                <div class="controls"><input type="text" data-bind="value: tray_id_name"></div>
-            </div>
-            <div class="control-group">
-                <label class="control-label">Type</label>
-                <div class="controls"><input type="text" data-bind="value: tray_type" placeholder="PLA, ABS, PETG..."></div>
-            </div>
-            <div class="control-group">
-                <label class="control-label">Color (hex)</label>
+                <label class="control-label">Filament Type</label>
                 <div class="controls">
-                    <input type="text" data-bind="value: tray_color" placeholder="FF0000" style="width:100px">
-                    <span class="bb-spool-color" data-bind="style: { backgroundColor: '#' + (tray_color() || '808080') }" style="display:inline-block;vertical-align:middle;margin-left:6px"></span>
+                    <select class="bb-select" data-bind="value: tray_type, options: $root.filamentTypes, optionsCaption: '-- Select --'" style="width:180px"></select>
+                    <small class="bb-preset-hint" data-bind="visible: tray_type()">Temps auto-filled from presets</small>
                 </div>
             </div>
+
+            <!-- Spool Name -->
             <div class="control-group">
-                <label class="control-label">Nozzle Temp Min</label>
-                <div class="controls"><input type="number" data-bind="value: nozzle_temp_min" style="width:80px"> °C</div>
+                <label class="control-label">Name <small>(optional)</small></label>
+                <div class="controls"><input type="text" data-bind="value: tray_id_name" placeholder="e.g. Bambu PLA Matte"></div>
             </div>
+
+            <!-- Color Palette -->
             <div class="control-group">
-                <label class="control-label">Nozzle Temp Max</label>
-                <div class="controls"><input type="number" data-bind="value: nozzle_temp_max" style="width:80px"> °C</div>
+                <label class="control-label">Color</label>
+                <div class="controls">
+                    <div class="bb-color-palette" data-bind="foreach: $root.filamentColors">
+                        <span class="bb-color-swatch"
+                              data-bind="style: { backgroundColor: '#' + hex },
+                                         attr: { title: name },
+                                         css: { 'bb-swatch-selected': $parent.tray_color() === hex },
+                                         click: function() { $parent.tray_color(hex); }"></span>
+                    </div>
+                    <div class="bb-color-custom" style="margin-top:6px">
+                        <label style="font-size:11px">Custom hex:</label>
+                        <input type="text" data-bind="value: tray_color" placeholder="FF0000" style="width:80px;font-family:monospace">
+                        <span class="bb-spool-color-preview" data-bind="style: { backgroundColor: '#' + (tray_color() || '808080') }"></span>
+                    </div>
+                </div>
             </div>
+
+            <!-- Temperature Range -->
             <div class="control-group">
-                <label class="control-label">Info Index</label>
-                <div class="controls"><input type="text" data-bind="value: tray_info_idx"></div>
+                <label class="control-label">Nozzle Temp</label>
+                <div class="controls bb-temp-range">
+                    <input type="number" min="0" max="350" data-bind="value: nozzle_temp_min" style="width:65px"> &ndash;
+                    <input type="number" min="0" max="350" data-bind="value: nozzle_temp_max" style="width:65px"> °C
+                </div>
             </div>
+
+            <!-- Advanced (collapsed by default) -->
+            <details class="bb-spool-advanced">
+                <summary>Advanced</summary>
+                <div class="control-group">
+                    <label class="control-label">Info Index</label>
+                    <div class="controls"><input type="text" data-bind="value: tray_info_idx" style="width:120px;font-family:monospace"></div>
+                </div>
+            </details>
+
             <!-- /ko -->
             <div class="bb-modal-footer">
                 <button class="btn btn-primary" data-bind="click: $parent.saveSpoolDetails">Save</button>
@@ -458,15 +488,18 @@
 <!-- AMS Tray Slot Template -->
 <script type="text/html" id="bb-tray-slot">
     <div class="bb-ams-tray" data-bind="css: { 'bb-tray-present': exists, 'bb-tray-active': spool && $parents[2] && $parents[2].activeTrayId && ($parents[2].activeTrayId() === (amsId * 4 + slotIndex)) }">
-        <!-- Color bar at top -->
+        <!-- Color header with slot number -->
         <!-- ko if: spool -->
-        <div class="bb-tray-color-bar" data-bind="style: { backgroundColor: spool.tray_color || '#808080' }"></div>
+        <div class="bb-tray-color-bar" data-bind="style: { backgroundColor: spool.tray_color || '#808080' }">
+            <span class="bb-tray-number" data-bind="text: (slotIndex + 1)"></span>
+        </div>
         <!-- /ko -->
         <!-- ko ifnot: spool -->
-        <div class="bb-tray-color-bar" style="background-color: #ddd"></div>
+        <div class="bb-tray-color-bar bb-tray-color-empty">
+            <span class="bb-tray-number" data-bind="text: (slotIndex + 1)"></span>
+        </div>
         <!-- /ko -->
         <div class="bb-tray-content">
-            <span class="bb-tray-number" data-bind="text: (slotIndex + 1)"></span>
             <!-- ko if: spool -->
             <span class="bb-tray-type" data-bind="text: spool.tray_type || '?'"></span>
             <span class="bb-tray-name" data-bind="visible: spool.tray_id_name, text: spool.tray_id_name"></span>
