@@ -10,6 +10,10 @@
     <!-- ko foreach: printers -->
     <li>
         <a href="#tab_plugin_bambuboard" data-bind="click: function() { $parent.selectedPrinterId(id); }">
+            <!-- ko if: isNative() && connected() -->
+            <i class="fas fa-plug bb-navbar-icon-native" title="Serial printer"></i>
+            <!-- /ko -->
+            <!-- ko ifnot: isNative() -->
             <!-- ko if: isPrinting() -->
             <i class="fas fa-print bb-navbar-icon-printing" title="Printing"></i>
             <!-- /ko -->
@@ -25,11 +29,12 @@
             <!-- ko ifnot: connected() -->
             <i class="fas fa-times-circle bb-navbar-icon-disconnected" title="Disconnected"></i>
             <!-- /ko -->
+            <!-- /ko -->
             <span data-bind="text: name"></span>
             <span class="bb-navbar-status" data-bind="text: statusSummary"></span>
         </a>
     </li>
-    <!-- ko if: isPrinting() || isPaused() -->
+    <!-- ko if: (isPrinting() || isPaused()) && !isNative() -->
     <li class="bb-navbar-actions">
         <a href="#" data-bind="click: function(d, e) { e.stopPropagation(); if (isPrinting()) { $parent.pausePrinting(); $parent.selectedPrinterId(id); } else { $parent.resumePrinting(); $parent.selectedPrinterId(id); } }">
             <i class="fas" data-bind="css: { 'fa-pause': isPrinting(), 'fa-play': isPaused() }"></i>

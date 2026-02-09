@@ -119,6 +119,14 @@
 
                 <div class="control-group">
                     <label class="control-label">
+                        <input type="checkbox" data-bind="checked: sign_commands">
+                        Sign commands (X.509)
+                    </label>
+                    <span class="help-inline">Required for post-Jan 2025 firmware without Developer Mode. Safe to leave on for all printers.</span>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">
                         <input type="checkbox" data-bind="checked: register_virtual_serial">
                         Register as OctoPrint serial port
                     </label>
@@ -138,5 +146,27 @@
         <button class="btn" data-bind="click: addPrinter">
             <i class="fas fa-plus"></i> Add Printer
         </button>
+    </div>
+
+    <!-- Native OctoPrint Printer -->
+    <div class="bb-settings-section">
+        <h5>OctoPrint Native Printer</h5>
+        <p class="help-block">
+            Show OctoPrint's serial-connected printer (e.g. Ender 5) alongside your Bambu printers
+            in the BambuBoard sidebar. Temperatures and print progress are displayed read-only.
+        </p>
+        <div class="control-group">
+            <label class="control-label">
+                <input type="checkbox" data-bind="checked: settings.settings.plugins.bambuboard.show_native_printer">
+                Enable native printer in BambuBoard
+            </label>
+        </div>
+        <div class="control-group">
+            <label class="control-label">Display Name</label>
+            <div class="controls">
+                <input type="text" data-bind="value: settings.settings.plugins.bambuboard.native_printer_name" placeholder="OctoPrint Serial">
+                <span class="help-inline">Leave blank for default name</span>
+            </div>
+        </div>
     </div>
 </div>

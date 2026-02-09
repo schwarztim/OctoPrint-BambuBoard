@@ -44,6 +44,7 @@ from .bambucommands import (
     STOP_PRINT,
     XCAM_CONTROL_SET,
 )
+from .bambu_x509 import sign_command
 from .bambuconfig import BambuConfig, LoggerName
 from .bambuspool import BambuSpool
 from .bambustate import BambuState
@@ -321,6 +322,19 @@ class BambuPrinter:
             if ftps and ftps.ftps_session:
                 ftps.disconnect()
 
+    def _publish_command(self, command: dict) -> None:
+        """Publish a command to the printer's MQTT request topic.
+
+        When sign_commands is enabled, the command is signed with RSA-SHA256
+        using the Bambu Connect application certificate before publishing.
+        """
+        if self.config.sign_commands:
+            command = sign_command(command)
+        self.client.publish(
+            f"device/{self.config.serial_number}/request",
+            json.dumps(command),
+        )
+
     def refresh(self):
         """
         Triggers a full data refresh from the printer (if it is connected).  You should use this
@@ -330,17 +344,11 @@ class BambuPrinter:
             logger.debug(
                 f"refresh - publishing ANNOUNCE_VERSION to [device/{self.config.serial_number}/request]"
             )
-            self.client.publish(
-                f"device/{self.config.serial_number}/request",
-                json.dumps(ANNOUNCE_VERSION),
-            )
+            self._publish_command(ANNOUNCE_VERSION)
             logger.debug(
                 f"refresh - publishing ANNOUNCE_PUSH to [device/{self.config.serial_number}/request]"
             )
-            self.client.publish(
-                f"device/{self.config.serial_number}/request",
-                json.dumps(ANNOUNCE_PUSH),
-            )
+            self._publish_command(ANNOUNCE_PUSH)
 
     def unload_filament(self, ams_id: int = 0):
         """
@@ -349,10 +357,7 @@ class BambuPrinter:
         msg = copy.deepcopy(AMS_CHANGE_FILAMENT)
         msg["print"]["ams_id"] = ams_id
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request",
-            json.dumps(msg),
-        )
+        self._publish_command(msg)
         logger.debug(
             f"unload_filament - published AMS_CHANGE_FILAMENT to [device/{self.config.serial_number}/request] - bambu_msg: [{msg}]"
         )
@@ -382,9 +387,7 @@ class BambuPrinter:
         msg["print"]["tar_temp"] = -1
         msg["print"]["curr_temp"] = -1
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(msg)
-        )
+        self._publish_command(msg)
         logger.debug(
             f"load_filament - published AMS_CHANGE_FILAMENT to [device/{self.config.serial_number}/request] - target: [{slot_id}], bambu_msg: [{msg}]"
         )
@@ -404,9 +407,7 @@ class BambuPrinter:
         """
         cmd = copy.deepcopy(SEND_GCODE_TEMPLATE)
         cmd["print"]["param"] = f"{gcode} \n"
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"send_gcode - published SEND_GCODE_TEMPLATE to [device/{self.config.serial_number}/request] gcode: [{gcode}]"
         )
@@ -477,9 +478,7 @@ class BambuPrinter:
         file["print"]["bed_leveling"] = bedlevel
         file["print"]["flow_cali"] = flow
         file["print"]["timelapse"] = timelapse
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(file)
-        )
+        self._publish_command(file)
         logger.debug(
             f"print_3mf_file - published PRINT_3MF_FILE to [device/{self.config.serial_number}/request] print_command: [{file}]"
         )
@@ -488,10 +487,7 @@ class BambuPrinter:
         """
         Requests the printer to stop printing if a job is currently running.
         """
-        self.client.publish(
-            f"device/{self.config.serial_number}/request",
-            json.dumps(STOP_PRINT),
-        )
+        self._publish_command(STOP_PRINT)
         logger.debug(
             f"stop_printing - published STOP_PRINT to [device/{self.config.serial_number}/request]"
         )
@@ -500,10 +496,7 @@ class BambuPrinter:
         """
         Pauses the current print job if one is running.
         """
-        self.client.publish(
-            f"device/{self.config.serial_number}/request",
-            json.dumps(PAUSE_PRINT),
-        )
+        self._publish_command(PAUSE_PRINT)
         logger.debug(
             f"pause_printing - published PAUSE_PRINT to [device/{self.config.serial_number}/request]"
         )
@@ -512,10 +505,7 @@ class BambuPrinter:
         """
         Resumes the current print job if one is paused.
         """
-        self.client.publish(
-            f"device/{self.config.serial_number}/request",
-            json.dumps(RESUME_PRINT),
-        )
+        self._publish_command(RESUME_PRINT)
         logger.debug(
             f"resume_printing - published RESUME_PRINT to [device/{self.config.serial_number}/request]"
         )
@@ -720,9 +710,7 @@ class BambuPrinter:
         elif option == PrintOption.SOUND_ENABLE:
             self.config.sound_enable = enabled
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"set_print_option - published PRINT_OPTION_COMMAND to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -754,9 +742,7 @@ class BambuPrinter:
         elif setting == AMSUserSetting.CALIBRATE_REMAIN_FLAG:
             self.config.calibrate_remain_flag = enabled
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"set_ams_user_setting - published AMS_USER_SETTING to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -794,9 +780,7 @@ class BambuPrinter:
         if max_volumetric_speed != -1:
             cmd["print"]["max_volumetric_speed"] = max_volumetric_speed
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"set_spool_k_factor - published EXTRUSION_CALI_SET to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -851,9 +835,7 @@ class BambuPrinter:
         cmd["print"]["nozzle_temp_min"] = nozzle_temp_min
         cmd["print"]["nozzle_temp_max"] = nozzle_temp_max
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"set_spool_details - published AMS_FILAMENT_SETTING to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -866,9 +848,7 @@ class BambuPrinter:
         cmd = copy.deepcopy(AMS_CONTROL)
         cmd["print"]["param"] = ams_cmd
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"send_ams_control_commandpublished AMS_CONTROL to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -891,9 +871,7 @@ class BambuPrinter:
 
         cmd = copy.deepcopy(SKIP_OBJECTS)
         cmd["print"]["obj_list"] = objs
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"skip_objects - published SKIP_OBJECTS to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -906,9 +884,7 @@ class BambuPrinter:
         cmd["xcam"]["control"] = enabled
         cmd["xcam"]["enable"] = enabled
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"set_buildplate_marker_detector - published XCAM_CONTROL_SET to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -923,9 +899,7 @@ class BambuPrinter:
         cmd["system"]["nozzle_diameter"] = nozzle_diameter.value
         cmd["system"]["nozzle_type"] = nozzle_type.name.lower()
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"set_nozzle_details - published SET_ACCESSORIES to [device/{self.config.serial_number}/request] bambu_msg: [{cmd}]"
         )
@@ -934,10 +908,7 @@ class BambuPrinter:
         """
         puts an arbritary string on the request topic
         """
-        self.client.publish(
-            f"device/{self.config.serial_number}/request",
-            json.dumps(json.loads(anything)),
-        )
+        self._publish_command(json.loads(anything))
         logger.debug(
             f"send_anything - published message to [device/{self.config.serial_number}/request] message: [{anything}]"
         )
@@ -971,9 +942,7 @@ class BambuPrinter:
         cmd["print"]["humidity"] = target_humidity
         cmd["print"]["cooling_temp"] = cooling_temp
         cmd["print"]["rotate_tray"] = rotate_tray
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
 
         ams = next((u for u in self._printer_state.ams_units if u.ams_id == ams_id), None)
         if not ams:
@@ -992,9 +961,7 @@ class BambuPrinter:
         cmd = copy.deepcopy(AMS_FILAMENT_DRYING)
         cmd["print"]["ams_id"] = ams_id
         cmd["print"]["mode"] = 0  # Turn off drying mode
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
 
         ams = next((u for u in self._printer_state.ams_units if u.ams_id == ams_id), None)
         if not ams:
@@ -1013,9 +980,7 @@ class BambuPrinter:
         """
         cmd = copy.deepcopy(SET_ACTIVE_TOOL)
         cmd["print"]["extruder_index"] = id
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"set_active_tool - published SET_ACTIVE_TOOL to [device/{self.config.serial_number}/request] command: [{cmd}]"
         )
@@ -1028,9 +993,7 @@ class BambuPrinter:
         cmd["print"]["ams_id"] = ams_id
         cmd["print"]["slot_id"] = slot_id
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"refresh_spool_rfid - published AMS_GET_RFID to [device/{self.config.serial_number}/request] command: [{cmd}]"
         )
@@ -1116,9 +1079,7 @@ class BambuPrinter:
         cmd["print"]["slot_id"] = tray_id % 4
         cmd["print"]["cali_idx"] = cali_idx
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"select_extrusion_calibration_profile - published EXTRUSION_CALI_SEL to [device/{self.config.serial_number}/request] cmd: [{cmd}]"
         )
@@ -1165,14 +1126,8 @@ class BambuPrinter:
                             logger.warning("BambuPrinter watchdog timeout")
                         printer._lastMessageTime = time.monotonic()
                         printer._recent_update = False
-                        printer.client.publish(
-                            f"device/{printer.config.serial_number}/request",
-                            json.dumps(ANNOUNCE_VERSION),
-                        )
-                        printer.client.publish(
-                            f"device/{printer.config.serial_number}/request",
-                            json.dumps(ANNOUNCE_PUSH),
-                        )
+                        printer._publish_command(ANNOUNCE_VERSION)
+                        printer._publish_command(ANNOUNCE_PUSH)
                     time.sleep(0.1)
             except Exception as e:
                 logger.exception("watchdog_thread - an internal exception occurred")
@@ -1247,17 +1202,11 @@ class BambuPrinter:
                 logger.debug(
                     f"filament change triggered publishing ANNOUNCE_VERSION to [device/{self.config.serial_number}/request]"
                 )
-                self.client.publish(
-                    f"device/{self.config.serial_number}/request",
-                    json.dumps(ANNOUNCE_VERSION),
-                )
+                self._publish_command(ANNOUNCE_VERSION)
                 logger.debug(
                     f"filament change triggered publishing ANNOUNCE_PUSH to [device/{self.config.serial_number}/request]"
                 )
-                self.client.publish(
-                    f"device/{self.config.serial_number}/request",
-                    json.dumps(ANNOUNCE_PUSH),
-                )
+                self._publish_command(ANNOUNCE_PUSH)
 
             if "bed_temper" in status:
                 self._bed_temp = float(status["bed_temper"])
@@ -1739,9 +1688,7 @@ class BambuPrinter:
             value = 0
         gcode = SEND_GCODE_TEMPLATE
         gcode["print"]["param"] = f"M140 S{value}\n"
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(gcode)
-        )
+        self._publish_command(gcode)
         logger.debug(
             f"set_bed_temp_target - published SEND_GCODE_TEMPLATE to [device/{self.config.serial_number}/request] command: [{gcode}]"
         )
@@ -1789,9 +1736,7 @@ class BambuPrinter:
         gcode["print"]["param"] = (
             f"M104 S{value}{'' if tool_num == -1 else ' T' + str(tool_num)}\n"
         )
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(gcode)
-        )
+        self._publish_command(gcode)
         logger.debug(
             f"set_nozzle_temp_target - published SEND_GCODE_TEMPLATE to [device/{self.config.serial_number}/request] command: [{gcode}]"
         )
@@ -1857,9 +1802,7 @@ class BambuPrinter:
                 value = 0
             else:
                 cmd["print"]["modeId"] = 1
-            self.client.publish(
-                f"device/{self.config.serial_number}/request", json.dumps(cmd)
-            )
+            self._publish_command(cmd)
             logger.debug(
                 f"set_chamber_temp_target - published SET_CHAMBER_AC_MODE to [device/{self.config.serial_number}/request] command: [{cmd}]"
             )
@@ -1868,9 +1811,7 @@ class BambuPrinter:
             cmd["print"]["ctt_val"] = value
             cmd["print"]["temper_check"] = temper_check
 
-            self.client.publish(
-                f"device/{self.config.serial_number}/request", json.dumps(cmd)
-            )
+            self._publish_command(cmd)
             logger.debug(
                 f"set_chamber_temp_target - published SET_CHAMBER_TEMP_TARGET to [device/{self.config.serial_number}/request] command: [{cmd}]"
             )
@@ -1922,9 +1863,7 @@ class BambuPrinter:
         speed = round(value * 2.55, 0)
         gcode = SEND_GCODE_TEMPLATE
         gcode["print"]["param"] = f"M106 P1 S{speed}\n"
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(gcode)
-        )
+        self._publish_command(gcode)
         logger.debug(
             f"set_part_cooling_fan_speed_target_percent - published SEND_GCODE_TEMPLATE to [device/{self.config.serial_number}/request] command: [{gcode}]"
         )
@@ -1944,9 +1883,7 @@ class BambuPrinter:
         speed = round(value * 2.55, 0)
         gcode = SEND_GCODE_TEMPLATE
         gcode["print"]["param"] = f"M106 P2 S{speed}\n"
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(gcode)
-        )
+        self._publish_command(gcode)
         logger.debug(
             f"set_aux_fan_speed_target_percent - published SEND_GCODE_TEMPLATE to [device/{self.config.serial_number}/request] command: [{gcode}]"
         )
@@ -1966,9 +1903,7 @@ class BambuPrinter:
         speed = round(value * 2.55, 0)
         gcode = SEND_GCODE_TEMPLATE
         gcode["print"]["param"] = f"M106 P3 S{speed}\n"
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(gcode)
-        )
+        self._publish_command(gcode)
         logger.debug(
             f"set_exhaust_fan_speed_target_percent - published SEND_GCODE_TEMPLATE to [device/{self.config.serial_number}/request] command: [{gcode}]"
         )
@@ -2024,25 +1959,19 @@ class BambuPrinter:
         else:
             cmd["system"]["led_mode"] = "off"
 
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"light_state.setter - publishing CHAMBER_LIGHT_TOGGLE to [device/{self.config.serial_number}/request] - chamber_light"
         )
 
         cmd["system"]["led_node"] = "chamber_light2"
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"light_state.setter - publishing CHAMBER_LIGHT_TOGGLE to [device/{self.config.serial_number}/request] - chamber_light2"
         )
 
         cmd["system"]["led_node"] = "column_light"
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
         logger.debug(
             f"light_state.setter - publishing CHAMBER_LIGHT_TOGGLE to [device/{self.config.serial_number}/request] - column_light"
         )
@@ -2056,9 +1985,7 @@ class BambuPrinter:
         value = str(value)
         cmd = SPEED_PROFILE_TEMPLATE
         cmd["print"]["param"] = value
-        self.client.publish(
-            f"device/{self.config.serial_number}/request", json.dumps(cmd)
-        )
+        self._publish_command(cmd)
 
     @property
     @deprecated("This property is deprecated (v1.0.0). Use `BambuState.gcode_state`.")

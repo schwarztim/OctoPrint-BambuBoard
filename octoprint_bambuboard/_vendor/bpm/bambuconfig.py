@@ -26,6 +26,7 @@ class BambuConfig:
         mqtt_username: str = "bblp",
         watchdog_timeout: int = 30,
         external_chamber: bool = False,
+        sign_commands: bool = True,
         verbose: bool = False,
     ):
         """
@@ -41,12 +42,17 @@ class BambuConfig:
         * mqtt_username : Optional[str] = "bblp"
         * watchdog_timeout : Optional[int] = 30
         * external_chamber : Optional[bool] = False
+        * sign_commands : Optional[bool] = True
         * verbose : Optional[bool] = False
 
         `external_chamber` can be used to tell `BambuPrinter` not to use any of the chamber
         temperature data received from the printer.  This can be useful if you are using an
         external chamber temperature sensor / heater and want to inject the sensor value and
         target temperatures into `BambuPrinter` directly.
+
+        `sign_commands` enables X.509 RSA-SHA256 signing of outbound MQTT commands.
+        Required for printers running post-Jan 2025 firmware without Developer Mode.
+        Default is True because signed commands are accepted by ALL printers (additive).
 
         `verbose` triggers a global log level change (within the scope of `bambu-printer-manager`)
         based on its value.  `True` will set a log level of `DEBUG` and `False` (the default) will
@@ -77,6 +83,7 @@ class BambuConfig:
         self._mqtt_username = mqtt_username
         self._watchdog_timeout = watchdog_timeout
         self._external_chamber = external_chamber
+        self._sign_commands = sign_commands
         self._verbose = verbose
 
         self._firmware_version = ""
@@ -177,6 +184,14 @@ class BambuConfig:
     @external_chamber.setter
     def external_chamber(self, value: bool):
         self._external_chamber = bool(value)
+
+    @property
+    def sign_commands(self) -> bool:
+        return self._sign_commands
+
+    @sign_commands.setter
+    def sign_commands(self, value: bool):
+        self._sign_commands = bool(value)
 
     @property
     def auto_recovery(self) -> bool:

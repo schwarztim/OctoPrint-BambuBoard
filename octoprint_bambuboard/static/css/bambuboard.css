@@ -704,6 +704,9 @@
 .bb-navbar-icon-disconnected {
   color: #999;
 }
+.bb-navbar-icon-native {
+  color: #5bc0de;
+}
 .bb-navbar-actions {
   padding-left: 26px;
 }

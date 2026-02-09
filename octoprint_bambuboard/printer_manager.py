@@ -83,6 +83,7 @@ class PrinterManager:
             serial_number=printer_cfg["serial_number"],
             mqtt_port=printer_cfg.get("mqtt_port", 8883),
             external_chamber=printer_cfg.get("external_chamber", False),
+            sign_commands=printer_cfg.get("sign_commands", True),
         )
 
         # Derive model from serial number prefix — no MQTT needed
@@ -327,6 +328,7 @@ class PrinterManager:
             "serial_number": cfg.serial_number,
             "mqtt_port": cfg.mqtt_port,
             "external_chamber": cfg.external_chamber,
+            "sign_commands": cfg.sign_commands,
             "auto_connect": True,
         }
 

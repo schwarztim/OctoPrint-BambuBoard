@@ -69,6 +69,7 @@ $(function () {
     self.connectionState = ko.observable(data.connection_state || "pending");
     self.isNative = ko.observable(data.is_native || false);
     self.errorMessage = ko.observable(data.error_message || "");
+    self.isNative = ko.observable(data.is_native || false);
 
     self.connected = ko.computed(function () {
       return self.connectionState() === "connected";
@@ -486,6 +487,7 @@ $(function () {
         serial_number: ko.observable(""),
         mqtt_port: ko.observable(8883),
         external_chamber: ko.observable(false),
+        sign_commands: ko.observable(true),
         auto_connect: ko.observable(true),
         register_virtual_serial: ko.observable(true),
         camera_url: ko.observable(""),
@@ -547,6 +549,7 @@ $(function () {
           serial_number: c.serial_number(),
           mqtt_port: parseInt(c.mqtt_port()) || 8883,
           external_chamber: c.external_chamber(),
+          sign_commands: c.sign_commands(),
           auto_connect: c.auto_connect(),
           register_virtual_serial: c.register_virtual_serial(),
           camera_url: c.camera_url(),
@@ -1180,6 +1183,7 @@ $(function () {
             serial_number: ko.observable(u(c.serial_number) || ""),
             mqtt_port: ko.observable(u(c.mqtt_port) || 8883),
             external_chamber: ko.observable(u(c.external_chamber) || false),
+            sign_commands: ko.observable(u(c.sign_commands) !== false),
             auto_connect: ko.observable(u(c.auto_connect) !== false),
             register_virtual_serial: ko.observable(
               u(c.register_virtual_serial) !== false,

@@ -9,6 +9,7 @@ import tempfile
 
 import flask
 import octoprint.plugin
+from octoprint.util import RepeatedTimer
 
 from .camera_proxy import CameraProxy
 from .file_manager import FileManager
@@ -25,7 +26,9 @@ class BambuBoardPlugin(
     octoprint.plugin.AssetPlugin,
     octoprint.plugin.SimpleApiPlugin,
     octoprint.plugin.BlueprintPlugin,
+    octoprint.plugin.EventHandlerPlugin,
 ):
+    NATIVE_PRINTER_ID = "__native__"
     # ── Lifecycle ──────────────────────────────────────────────────────
 
     def on_after_startup(self):
@@ -33,6 +36,7 @@ class BambuBoardPlugin(
         self._printer_manager = PrinterManager(self)
         self._file_manager = FileManager(self._printer_manager)
         self._camera_proxy = CameraProxy(self)
+        self._native_poll_timer = None
 
         printers = self._settings.get(["printers"]) or []
         if printers:
@@ -41,6 +45,7 @@ class BambuBoardPlugin(
 
     def on_shutdown(self):
         _logger.info("BambuBoard shutting down")
+        self._stop_native_poll()
         if hasattr(self, "_camera_proxy"):
             self._camera_proxy.stop_all()
         if hasattr(self, "_printer_manager"):
@@ -56,6 +61,8 @@ class BambuBoardPlugin(
             "sidebar_display_mode": "all",
             "default_printer_id": "",
             "dark_mode": False,
+            "show_native_printer": True,
+            "native_printer_name": "",
         }
 
     def on_settings_save(self, data):
@@ -90,7 +97,7 @@ class BambuBoardPlugin(
     @staticmethod
     def _printer_config_changed(old, new):
         """Check if connection-relevant fields changed."""
-        keys = ("hostname", "access_code", "serial_number", "mqtt_port", "external_chamber")
+        keys = ("hostname", "access_code", "serial_number", "mqtt_port", "external_chamber", "sign_commands")
         return any(old.get(k) != new.get(k) for k in keys)
 
     # ── Templates ──────────────────────────────────────────────────────
@@ -162,6 +169,23 @@ class BambuBoardPlugin(
                     "error_message": "",
                     "state": {},
                 }
+
+        # Include native OctoPrint serial printer
+        if self._settings.get_boolean(["show_native_printer"]):
+            try:
+                native_state = self._get_native_printer_state()
+                is_connected = self._printer.is_operational()
+                custom_name = self._settings.get(["native_printer_name"])
+                name = custom_name if custom_name else "OctoPrint Serial"
+                printers[self.NATIVE_PRINTER_ID] = {
+                    "name": name,
+                    "connected": is_connected,
+                    "error_message": "",
+                    "is_native": True,
+                    "state": native_state,
+                }
+            except Exception:
+                _logger.debug("Could not get native printer state for API response")
 
         return flask.jsonify({"printers": printers})
 
@@ -581,6 +605,137 @@ class BambuBoardPlugin(
         all_states = self._printer_manager.get_all_states()
         initial["bambuboard"] = all_states
         return initial
+
+    # ── Native OctoPrint Printer (EventHandlerPlugin) ────────────────
+
+    def on_event(self, event, payload):
+        if not self._settings.get_boolean(["show_native_printer"]):
+            return
+
+        from octoprint.events import Events
+
+        if event == Events.CONNECTED:
+            _logger.info("Native serial printer connected, starting BambuBoard polling")
+            self._start_native_poll()
+            self._send_native_printer_update()
+        elif event == Events.DISCONNECTED:
+            _logger.info("Native serial printer disconnected")
+            self._stop_native_poll()
+            self._send_native_printer_update()
+        elif event in (
+            Events.PRINT_STARTED,
+            Events.PRINT_DONE,
+            Events.PRINT_FAILED,
+            Events.PRINT_CANCELLED,
+            Events.PRINT_PAUSED,
+            Events.PRINT_RESUMED,
+            Events.Z_CHANGE,
+        ):
+            self._send_native_printer_update()
+
+    def _start_native_poll(self):
+        self._stop_native_poll()
+        self._native_poll_timer = RepeatedTimer(2.0, self._send_native_printer_update)
+        self._native_poll_timer.daemon = True
+        self._native_poll_timer.start()
+
+    def _stop_native_poll(self):
+        if hasattr(self, "_native_poll_timer") and self._native_poll_timer is not None:
+            self._native_poll_timer.cancel()
+            self._native_poll_timer = None
+
+    def _get_native_printer_state(self):
+        """Map OctoPrint's native printer state to a BambuBoard-compatible dict."""
+        current_data = self._printer.get_current_data()
+        temps = self._printer.get_current_temperatures()
+
+        # Connection state
+        is_connected = self._printer.is_operational()
+
+        # Progress
+        progress = current_data.get("progress", {}) or {}
+        completion = progress.get("completion") or 0
+        print_time = progress.get("printTime") or 0
+        print_time_left = progress.get("printTimeLeft") or 0
+
+        # Job
+        job = current_data.get("job", {}) or {}
+        file_info = job.get("file", {}) or {}
+        filename = file_info.get("display") or file_info.get("name") or ""
+
+        # State
+        state = current_data.get("state", {}) or {}
+        flags = state.get("flags", {}) or {}
+
+        # Map OctoPrint state to BambuBoard gcode_state
+        if flags.get("printing"):
+            gcode_state = "RUNNING"
+        elif flags.get("pausing") or flags.get("paused"):
+            gcode_state = "PAUSE"
+        elif flags.get("cancelling"):
+            gcode_state = "FAILED"
+        elif flags.get("finishing"):
+            gcode_state = "FINISH"
+        elif flags.get("operational") and not flags.get("ready"):
+            gcode_state = "PREPARE"
+        else:
+            gcode_state = "IDLE"
+
+        # Temperatures
+        tool0 = temps.get("tool0", {}) or {}
+        bed = temps.get("bed", {}) or {}
+
+        return {
+            "printer_model": "NATIVE",
+            "service_state": "CONNECTED" if is_connected else "QUIT",
+            "gcode_state": gcode_state,
+            "firmware_version": "",
+            "subtask_name": filename,
+            "print_percentage": round(completion, 1) if completion else 0,
+            "remaining_minutes": round(print_time_left / 60, 1) if print_time_left else 0,
+            "elapsed_minutes": round(print_time / 60, 1) if print_time else 0,
+            "current_layer": 0,
+            "total_layers": 0,
+            "nozzle_temp": tool0.get("actual", 0) or 0,
+            "nozzle_temp_target": tool0.get("target", 0) or 0,
+            "bed_temp": bed.get("actual", 0) or 0,
+            "bed_temp_target": bed.get("target", 0) or 0,
+            "chamber_temp": 0,
+            "chamber_temp_target": 0,
+            "speed_level": 2,
+            "light_state": False,
+            "has_ams": False,
+            "has_camera": False,
+            "has_chamber_temp": False,
+            "has_dual_extruder": False,
+            "has_air_filtration": False,
+        }
+
+    def _send_native_printer_update(self):
+        if not self._settings.get_boolean(["show_native_printer"]):
+            return
+
+        try:
+            state_dict = self._get_native_printer_state()
+        except Exception:
+            _logger.exception("Error getting native printer state")
+            return
+
+        is_connected = self._printer.is_operational()
+        custom_name = self._settings.get(["native_printer_name"])
+        name = custom_name if custom_name else "OctoPrint Serial"
+
+        self._plugin_manager.send_plugin_message(
+            self._identifier,
+            {
+                "type": "printer_update",
+                "printer_id": self.NATIVE_PRINTER_ID,
+                "name": name,
+                "connected": is_connected,
+                "is_native": True,
+                "state": state_dict,
+            },
+        )
 
     # ── Plugin Message Dispatch ────────────────────────────────────────
 
